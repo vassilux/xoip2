@@ -1,0 +1,30 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+AST_MODULE	app_xoip.c	33;"	d	file:
+XOIP_COMMUT_CONTEXT	app_xoip.c	74;"	d	file:
+XOIP_COMMUT_EXTEN	app_xoip.c	75;"	d	file:
+XOIP_CONFIG	app_xoip.c	64;"	d	file:
+XOIP_PROTOCOL_KEY	app_xoip.c	71;"	d	file:
+XOIP_STATE_KEY	app_xoip.c	66;"	d	file:
+XOIP_STATE_VALUE_ANSWER	app_xoip.c	67;"	d	file:
+XOIP_STATE_VALUE_COMMUT	app_xoip.c	69;"	d	file:
+XOIP_STATE_VALUE_HANGUP	app_xoip.c	68;"	d	file:
+app_xoip	app_xoip.c	/^static char *app_xoip = "XoIp";$/;"	v	file:
+ast_channel_name	app_xoip.c	/^                                ast_channel_name(caller),     ast_channel_name(outbound));$/;"	p	file:
+config_f1_adr	app_xoip.c	/^static char config_f1_adr[128] = {'\\0'};$/;"	v	file:
+config_f1_port	app_xoip.c	/^static int config_f1_port = 8118;$/;"	v	file:
+do_process_message	xoip_messages.c	/^do_process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+do_process_message	xoip_messages.c	/^int do_process_message (const char *buf, int size,$/;"	p	file:	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+g_current_callref	xoip_utils.c	/^static int g_current_callref = 0x0;$/;"	v	file:
+g_current_track	xoip_utils.c	/^static int g_current_track = 0x0;$/;"	v	file:
+get_current_callref	xoip_utils.c	/^int get_current_callref(void)$/;"	f	signature:(void)
+get_current_track	xoip_utils.c	/^int get_current_track(void)$/;"	f	signature:(void)
+process_message	xoip_messages.c	/^process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+xoip_build_XC_msg	xoip_messages.c	/^xoip_build_XC_msg (int voie, int callref, const char *callee,$/;"	f	signature:(int voie, int callref, const char *callee, const char *caller, const char *real_caller, char *dest, int size)
+xoip_build_Xc_msg	xoip_messages.c	/^xoip_build_Xc_msg (int voie, int callref, const char *callee,$/;"	f	signature:(int voie, int callref, const char *callee, const char *caller, const char *real_caller, char *dest, int size)
+xoip_build_Xh_msg	xoip_messages.c	/^xoip_build_Xh_msg (int voie, int callref, int state, const char *callee,$/;"	f	signature:(int voie, int callref, int state, const char *callee, char *dest, int size)
+xoip_build_Xr_msg	xoip_messages.c	/^xoip_build_Xr_msg (int voie, int callref, char *dest, int size)$/;"	f	signature:(int voie, int callref, char *dest, int size)
