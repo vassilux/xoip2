@@ -47,6 +47,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/pbx.h"
 #include "asterisk/dial.h"
 #include "asterisk/features.h"
+#include "asterisk/audiohook.h"
 
 /* xoip internal includes */
 #include "xoip_types.h"
@@ -163,6 +164,7 @@ static int xoip_channel_del(int track, int callref)
     AST_LIST_TRAVERSE_SAFE_BEGIN(&xoip_comms, xcomm, list){
         if((xcomm->track == track) && (xcomm->callref == callref)){
             AST_LIST_REMOVE_CURRENT(list);
+            //ast_audiohook_destroy(&xcomm->audiohook);
             free(xcomm);
             res = 0;
         }
@@ -702,7 +704,71 @@ static int load_config(void){
 	return 0;
 }
 
+/*! \brief The callback from the audiohook subsystem. We basically get a frame to have fun with */
+static int xoip_audiohook_callback(struct ast_audiohook *audiohook, struct ast_channel *chan, struct ast_frame *frame, enum ast_audiohook_direction direction)
+{
+	struct ast_datastore *datastore = NULL;
+	//struct mute_information *mute = NULL;
+        
 
+        //ast_log(AST_LOG_DEBUG, "XoIP : audohook called.\n");
+
+
+	/* If the audiohook is stopping it means the channel is shutting down.... but we let the datastore destroy take care of it */
+	if (audiohook->status == AST_AUDIOHOOK_STATUS_DONE) {
+		return 0;
+	}
+
+	ast_channel_lock(chan);
+
+        /* if not DTMF, just do it again */
+        if (frame->frametype != AST_FRAME_DTMF) {
+            ast_frfree(frame);
+	    return 0;
+        }
+
+         ast_log(AST_LOG_DEBUG, "XoIP : Get DTMF [%c]\n", frame->subclass.integer);
+
+
+        ast_frfree(frame);
+#if 0
+        /* If we have all the digits we expect, leave */
+        if(i >= maxsize)
+	    break;
+	    lastdigittime = ast_tvnow();
+        }
+
+        data[i] = '\0'; 
+#endif 
+
+#if 0
+	/* Grab datastore which contains our mute information */
+	if (!(datastore = ast_channel_datastore_find(chan, &mute_datastore, NULL))) {
+		ast_channel_unlock(chan);
+		ast_debug(2, "Can't find any datastore to use. Bad. \n");
+		return 0;
+	}
+
+	mute = datastore->data;
+#endif 
+
+#if 0
+
+	/* If this is audio then allow them to increase/decrease the gains */
+	if (frame->frametype == AST_FRAME_VOICE) {
+		ast_debug(2, "Audio frame - direction %s  mute READ %s WRITE %s\n", direction == AST_AUDIOHOOK_DIRECTION_READ ? "read" : "write", mute->mute_read ? "on" : "off", mute->mute_write ? "on" : "off");
+
+		/* Based on direction of frame grab the gain, and confirm it is applicable */
+		if ((direction == AST_AUDIOHOOK_DIRECTION_READ && mute->mute_read) || (direction == AST_AUDIOHOOK_DIRECTION_WRITE && mute->mute_write)) {
+			/* Ok, we just want to reset all audio in this frame. Keep NOTHING, thanks. */
+			ast_frame_clear(frame);
+		}
+	}
+#endif 
+	ast_channel_unlock(chan);
+
+	return 0;
+}
 
 static void *xoip_read_data_thread(void* data)
 {
@@ -803,13 +869,23 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
 	}
         xcomm->tones_thread_id = thread_id;
 
+#endif
+
+#if 0
+        ast_audiohook_init(&xcomm->audiohook, AST_AUDIOHOOK_TYPE_MANIPULATE, "XoIP", AST_AUDIOHOOK_MANIPULATE_ALL_RATES);
+	xcomm->audiohook.manipulate_callback = xoip_audiohook_callback;
 #endif 
+
+        if (ast_audiohook_attach(xcomm->chan, &xcomm->audiohook)) {
+		ast_log(LOG_ERROR, "XoIP : Failed to attach audiohook for muting channel %s\n", ast_channel_name(chan));
+		return -1;
+	}
         
         //for (;;) {
         while (ast_waitfor(chan, -1) > -1){
             /* If we fail to read in a frame, that means they hung up */
             if(ast_check_hangup(chan)) {
-                ast_log(LOG_NOTICE, "xoip: process alarm. Channel [%s]. HANGUP\n", 
+                ast_log(LOG_NOTICE, "XoIP : process alarm. Channel [%s]. HANGUP\n", 
                         ast_channel_name(chan));
 		break;
 	    }
@@ -835,7 +911,7 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
             ast_free(xcomm_callback);
         }
 #endif 
-        ast_log(LOG_NOTICE, "xoip : leave process_incomming_alarm : %s.\n", data);
+        ast_log(LOG_NOTICE, "XoIP : Leave process_incomming_alarm.\n");
 	return res;
 
 }
@@ -851,10 +927,10 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
 static int xoip_exec(struct ast_channel *chan, const char *data)
 {
 	int res = 0;
-	ast_log(LOG_NOTICE, "xoip execute called with data : %s", data);
+	ast_log(LOG_NOTICE, "XoIP : starting with data : [%s].", data);
         int state = ast_check_hangup(chan);
         if(ast_check_hangup(chan)) {
-            ast_log(LOG_NOTICE, "xoip: Early channel [%s] HANGUP\n",
+            ast_log(LOG_NOTICE, "XoIP : Early channel [%s] HANGUP.\n",
                     ast_channel_name(chan));
             return 0;
         }

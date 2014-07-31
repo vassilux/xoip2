@@ -535,6 +535,8 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
         ast_log(AST_LOG_DEBUG, "XoIP : Waitfor returned %d\n", r);
 	continue;
     }
+
+    ast_stopstream(chan);
     
     /*if (ast_channel_state(chan) != AST_STATE_UP){
         continue;

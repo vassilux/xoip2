@@ -63,6 +63,7 @@ struct xoip_comm {
     xoip_protocol_t proto;
     int (*func_data_callback) (int track, int callref, const char* data);
     struct ast_channel *chan;
+    struct ast_audiohook audiohook;
     AST_LIST_ENTRY(xoip_comm) list;
 };
 
