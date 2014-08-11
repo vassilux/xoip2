@@ -35,7 +35,7 @@
 #include "asterisk/pbx.h"
 #include "asterisk/module.h"
 #include "asterisk/translate.h"
-#include "asterisk/ulaw.h"
+#include "asterisk/alaw.h"
 #include "asterisk/app.h"
 #include "asterisk/dsp.h"
 #include "asterisk/indications.h"
@@ -268,7 +268,7 @@ make_tone_burst (unsigned char *data, float freq, float loudness, int len,
   for (i = 0; i < len; i++)
     {
       val = loudness * sin ((freq * 2.0 * M_PI * (*x)++) / 8000.0);
-      data[i] = AST_LIN2MU ((int) val);
+      data[i] = AST_LIN2A ((int) val);
     }
 
   /* wrap back around from 8000 */
@@ -283,7 +283,7 @@ make_tone_burst (unsigned char *data, float freq, float loudness, int len,
 * Send a single tone burst for a specifed duration and frequency.
 * Returns 0 if successful
 */
-static int send_tone_burst(struct ast_channel *chan, float freq, int duration, int tldn)
+static int send_tone_burst(struct ast_channel *chan, float freq, int duration, int loudness)
 {
 	int res = 0;
 	int i = 0;
@@ -310,14 +310,14 @@ static int send_tone_burst(struct ast_channel *chan, float freq, int duration, i
 
 		if (f->frametype == AST_FRAME_VOICE) {
 			wf.frametype = AST_FRAME_VOICE;
-			ast_format_set(&wf.subclass.format, AST_FORMAT_ULAW, 0);
+			ast_format_set(&wf.subclass.format, AST_FORMAT_ALAW, 0);
 			wf.offset = AST_FRIENDLY_OFFSET;
 			wf.mallocd = 0;
 			wf.data.ptr = tone_block.buf;
 			wf.datalen = f->datalen;
 			wf.samples = wf.datalen;
 			
-			make_tone_burst(tone_block.buf, freq, (float) tldn, wf.datalen, &x);
+			make_tone_burst(tone_block.buf, freq, (float) loudness, wf.datalen, &x);
 
 			i += wf.datalen / 8;
 			if (i > duration) {
@@ -325,8 +325,7 @@ static int send_tone_burst(struct ast_channel *chan, float freq, int duration, i
 				break;
 			}
 			if (ast_write(chan, &wf)) {
-				ast_verb(4, "AlarmReceiver: Failed to write frame on %s\n", ast_channel_name(chan));
-				ast_log(LOG_WARNING, "AlarmReceiver Failed to write frame on %s\n",ast_channel_name(chan));
+				ast_log(LOG_WARNING, "XoIP : Failed to write frame on %s\n",ast_channel_name(chan));
 				res = -1;
 				ast_frfree(f);
 				break;
@@ -476,26 +475,65 @@ xoip_generate_tones (struct ast_channel *chan, const char *data, int size,
   int i = 0;
   ast_log (AST_LOG_DEBUG, "XoIP : Send tones [%s] for the type %d.\n", data,
 	   tone_types);
-  int tldn = 4096;
+  int loudness = 4096;
 
   if ((tone_types & TONES_DTMF) > 0){
       //res = ast_dtmf_stream(chan, NULL, data, 0, 0);
       res = xoip_generate_dtmf_tones(chan ,data, size, duration, 0);
   }
 
-#if 0
-      res = send_tone_burst(chan, 1400.0, 100, tldn);
+  if((tone_types & TONES_FSK) > 0) {
+      res = send_tone_burst(chan, 1400.0, 100, loudness);
 
-			if (!res)
-				res = ast_safe_sleep(chan, 100);
-			if (!res) {
-				ast_verb(4, "AlarmReceiver: Sending 2300Hz 100ms burst (ACK)\n");
-				res = send_tone_burst(chan, 2300.0, 100, tldn);
-			}
-#endif 
+  }
+
     
   return res;
 }
+
+/*!
+ * \brief Work is in progress. I can not change the tone duration :-) 
+ */
+int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loudness)
+{
+    int res = 0;
+    struct ast_channel *chan = xcomm->chan;
+
+    int vol = loudness;
+    /* I AM NOT SURE IF IT IS GOOD !!! MUST BE VERIFIED !!! */
+    vol = (32767 * vol)/143;
+
+    char tones[64];
+    snprintf(tones, sizeof(tones) -1, "!%d/%d", freq,duration);
+
+    ast_log(AST_LOG_DEBUG, "XoIP [%02d:%04X]: generate freguancy volume [%d] tones : [%s].\n", xcomm->track, xcomm->callref, vol, tones);
+    
+    res = ast_playtones_start(chan, vol, tones,0);
+    /* the following code is disabled because the application is crashing */
+#if 0
+    int ms = duration;
+    while(ms > 0){
+        ms = ast_waitfor(chan, ms);
+
+        if(ms < 0){
+            ast_log(AST_LOG_ERROR, "XoIP [%02d:%04X] : Error while generating tone.\n",
+                    xcomm->track, xcomm->callref);
+            break;
+        }
+
+        if(ms == 0){ /* all done */
+            ast_verb(4, "XoIP [%02d:%04X] :All tones done.\n",
+                    xcomm->track, xcomm->callref);
+
+            break;
+        }
+    }
+    ast_playtones_stop(chan);
+
+#endif  
+        return 0;
+}
+
 
 
 int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout)
@@ -526,14 +564,13 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
     for (;;) {
     /* if outa time, leave */
     if (ast_tvdiff_ms(ast_tvnow(), lastdigittime) > ((i > 0) ? sdto : fdto)) {
-        ast_log(AST_LOG_DEBUG, "XoIP : DTMF Digit Timeout on %s\n", ast_channel_name(chan));
-	res = 1;
+        //ast_log(AST_LOG_DEBUG, "XoIP : DTMF Digit Timeout on %s\n", ast_channel_name(chan));
 	break;
     }
-
-    if ((r = ast_waitfor(chan, -1)) < 0) {
+    /* wait 1sec but a parameter can be used */
+    if ((r = ast_waitfor(chan, timeout)) < 0) {
         ast_log(AST_LOG_DEBUG, "XoIP : Waitfor returned %d\n", r);
-	continue;
+	break;
     }
 
     ast_stopstream(chan);
@@ -579,6 +616,194 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
   
 #endif
     return res;
+}
+
+
+int set_talk_volume(struct xoip_comm *xcomm, int volume)
+{
+	char gain_adjust;
+
+	/* attempt to make the adjustment in the channel driver;
+	   if successful, don't adjust in the frame reading routine
+	*/
+	gain_adjust = gain_map[volume + 5];
+
+	return ast_channel_setoption(xcomm->chan, AST_OPTION_RXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
+}
+
+int set_listen_volume(struct xoip_comm *xcomm, int volume)
+{
+	char gain_adjust;
+
+	/* attempt to make the adjustment in the channel driver;
+	   if successful, don't adjust in the frame reading routine
+	*/
+	gain_adjust = gain_map[volume + 5];
+
+	return ast_channel_setoption(xcomm->chan, AST_OPTION_TXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
+}
+
+
+/** helpers **/
+void print_frame(struct ast_frame *frame)
+{
+	switch (frame->frametype) {
+	case AST_FRAME_DTMF_END:
+		ast_verbose("FrameType: DTMF END\n");
+		ast_verbose("Digit: %c\n", frame->subclass.integer);
+		break;
+	case AST_FRAME_VOICE:
+		ast_verbose("FrameType: VOICE\n");
+		ast_verbose("Codec: %s\n", ast_getformatname(&frame->subclass.format));
+		ast_verbose("MS: %ld\n", frame->len);
+		ast_verbose("Samples: %d\n", frame->samples);
+		ast_verbose("Bytes: %d\n", frame->datalen);
+		break;
+	case AST_FRAME_VIDEO:
+		ast_verbose("FrameType: VIDEO\n");
+		ast_verbose("Codec: %s\n", ast_getformatname(&frame->subclass.format));
+		ast_verbose("MS: %ld\n", frame->len);
+		ast_verbose("Samples: %d\n", frame->samples);
+		ast_verbose("Bytes: %d\n", frame->datalen);
+		break;
+	case AST_FRAME_CONTROL:
+		ast_verbose("FrameType: CONTROL\n");
+		switch ((enum ast_control_frame_type) frame->subclass.integer) {
+		case AST_CONTROL_HANGUP:
+			ast_verbose("SubClass: HANGUP\n");
+			break;
+		case AST_CONTROL_RING:
+			ast_verbose("SubClass: RING\n");
+			break;
+		case AST_CONTROL_RINGING:
+			ast_verbose("SubClass: RINGING\n");
+			break;
+		case AST_CONTROL_ANSWER:
+			ast_verbose("SubClass: ANSWER\n");
+			break;
+		case AST_CONTROL_BUSY:
+			ast_verbose("SubClass: BUSY\n");
+			break;
+		case AST_CONTROL_TAKEOFFHOOK:
+			ast_verbose("SubClass: TAKEOFFHOOK\n");
+			break;
+		case AST_CONTROL_OFFHOOK:
+			ast_verbose("SubClass: OFFHOOK\n");
+			break;
+		case AST_CONTROL_CONGESTION:
+			ast_verbose("SubClass: CONGESTION\n");
+			break;
+		case AST_CONTROL_FLASH:
+			ast_verbose("SubClass: FLASH\n");
+			break;
+		case AST_CONTROL_WINK:
+			ast_verbose("SubClass: WINK\n");
+			break;
+		case AST_CONTROL_OPTION:
+			ast_verbose("SubClass: OPTION\n");
+			break;
+		case AST_CONTROL_RADIO_KEY:
+			ast_verbose("SubClass: RADIO KEY\n");
+			break;
+		case AST_CONTROL_RADIO_UNKEY:
+			ast_verbose("SubClass: RADIO UNKEY\n");
+			break;
+		case AST_CONTROL_PROGRESS:
+			ast_verbose("SubClass: PROGRESS\n");
+			break;
+		case AST_CONTROL_PROCEEDING:
+			ast_verbose("SubClass: PROCEEDING\n");
+			break;
+		case AST_CONTROL_HOLD:
+			ast_verbose("SubClass: HOLD\n");
+			break;
+		case AST_CONTROL_UNHOLD:
+			ast_verbose("SubClass: UNHOLD\n");
+			break;
+		case AST_CONTROL_VIDUPDATE:
+			ast_verbose("SubClass: VIDUPDATE\n");
+			break;
+		case _XXX_AST_CONTROL_T38:
+			ast_verbose("SubClass: XXX T38\n");
+			break;
+		case AST_CONTROL_SRCUPDATE:
+			ast_verbose("SubClass: SRCUPDATE\n");
+			break;
+		case AST_CONTROL_TRANSFER:
+			ast_verbose("SubClass: TRANSFER\n");
+			break;
+		case AST_CONTROL_CONNECTED_LINE:
+			ast_verbose("SubClass: CONNECTED LINE\n");
+			break;
+		case AST_CONTROL_REDIRECTING:
+			ast_verbose("SubClass: REDIRECTING\n");
+			break;
+		case AST_CONTROL_T38_PARAMETERS:
+			ast_verbose("SubClass: T38 PARAMETERS\n");
+			break;
+		case AST_CONTROL_CC:
+			ast_verbose("SubClass: CC\n");
+			break;
+		case AST_CONTROL_SRCCHANGE:
+			ast_verbose("SubClass: SRCCHANGE\n");
+			break;
+		case AST_CONTROL_READ_ACTION:
+			ast_verbose("SubClass: READ ACTION\n");
+			break;
+		case AST_CONTROL_AOC:
+			ast_verbose("SubClass: AOC\n");
+			break;
+		case AST_CONTROL_MCID:
+			ast_verbose("SubClass: MCID\n");
+			break;
+		case AST_CONTROL_INCOMPLETE:
+			ast_verbose("SubClass: INCOMPLETE\n");
+			break;
+		case AST_CONTROL_END_OF_Q:
+			ast_verbose("SubClass: END_OF_Q\n");
+			break;
+		case AST_CONTROL_UPDATE_RTP_PEER:
+			ast_verbose("SubClass: UPDATE_RTP_PEER\n");
+			break;
+		case AST_CONTROL_PVT_CAUSE_CODE:
+			ast_verbose("SubClass: PVT_CAUSE_CODE\n");
+			break;
+		}
+		
+		if (frame->subclass.integer == -1) {
+			ast_verbose("SubClass: %d\n", frame->subclass.integer);
+		}
+		ast_verbose("Bytes: %d\n", frame->datalen);
+		break;
+	case AST_FRAME_NULL:
+		ast_verbose("FrameType: NULL\n");
+		break;
+	case AST_FRAME_IAX:
+		ast_verbose("FrameType: IAX\n");
+		break;
+	case AST_FRAME_TEXT:
+		ast_verbose("FrameType: TXT\n");
+		break;
+	case AST_FRAME_IMAGE:
+		ast_verbose("FrameType: IMAGE\n");
+		break;
+	case AST_FRAME_HTML:
+		ast_verbose("FrameType: HTML\n");
+		break;
+	case AST_FRAME_CNG:
+		ast_verbose("FrameType: CNG\n");
+		break;
+	case AST_FRAME_MODEM:
+		ast_verbose("FrameType: MODEM\n");
+		break;
+	case AST_FRAME_DTMF_BEGIN:
+		ast_verbose("FrameType: DTMF BEGIN\n");
+		ast_verbose("Digit: %d\n", frame->subclass.integer);
+		break;
+	}
+
+	ast_verbose("Src: %s\n", ast_strlen_zero(frame->src) ? "NOT PRESENT" : frame->src);
+	ast_verbose("\n");
 }
 
 

@@ -28,6 +28,8 @@
 #include "asterisk.h"
 #include "asterisk/channel.h"
 #include "asterisk/linkedlists.h"
+#include "asterisk/audiohook.h"
+#include "asterisk/dsp.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -49,6 +51,7 @@ extern "C" {
 #define XOIP_DEFAULT_EMULATE_DTMF_DURATION 100
 
 
+#define UNUSED(x) (void)(x)
 /*!
  * \brief the xoip communication
  *
@@ -59,10 +62,11 @@ struct xoip_comm {
     int track;
     int callref;
     unsigned int stop_tones:1;
-    pthread_t tones_thread_id; 
     xoip_protocol_t proto;
     int (*func_data_callback) (int track, int callref, const char* data);
     struct ast_channel *chan;
+    struct ast_channel *bridged_chan;
+    struct ast_dsp *dsp;
     struct ast_audiohook audiohook;
     AST_LIST_ENTRY(xoip_comm) list;
 };
@@ -99,10 +103,61 @@ enum {
 };
 
 
+
+static struct {
+	enum ast_frame_type type;
+	const char *str;
+} frametype2str[] = {
+	{ AST_FRAME_DTMF_BEGIN,   "DTMF_BEGIN" },
+	{ AST_FRAME_DTMF_END,   "DTMF_END" },
+	{ AST_FRAME_VOICE,   "VOICE" },
+	{ AST_FRAME_VIDEO,   "VIDEO" },
+	{ AST_FRAME_CONTROL,   "CONTROL" },
+	{ AST_FRAME_NULL,   "NULL" },
+	{ AST_FRAME_IAX,   "IAX" },
+	{ AST_FRAME_TEXT,   "TEXT" },
+	{ AST_FRAME_IMAGE,   "IMAGE" },
+	{ AST_FRAME_HTML,   "HTML" },
+	{ AST_FRAME_CNG,   "CNG" },
+	{ AST_FRAME_MODEM,   "MODEM" },
+};
+
+struct frame_trace_data {
+	int list_type; /* 0 = white, 1 = black */
+	int values[ARRAY_LEN(frametype2str)];
+};
+
+
+static const char gain_map[] = {
+	-15,
+	-13,
+	-10,
+	-6,
+	0,
+	0,
+	0,
+	6,
+	10,
+	13,
+	15,
+};
+
+
+
+
+
 int xoip_generate_tones(struct ast_channel *chan, const char *data, int size, int tone_types, int duration);
 
+int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loudness);
 
 int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout);
+
+int set_talk_volume(struct xoip_comm *xcomm, int volume);
+
+int set_listen_volume(struct xoip_comm *xcomm, int volume);
+
+/** helpers **/
+void print_frame(struct ast_frame *frame);
 
 
 

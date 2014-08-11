@@ -48,6 +48,7 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: $")
 #include "asterisk/dial.h"
 #include "asterisk/features.h"
 #include "asterisk/audiohook.h"
+#include "asterisk/dsp.h"
 
 /* xoip internal includes */
 #include "xoip_types.h"
@@ -137,16 +138,12 @@ static int send_f1_packet(char *data, int size)
 
 int data_callback_fn(int track, int callref, const char* data)
 {
-    int res = 0;
     char buf[BUFLEN];
     memset(buf, 0, sizeof(buf));
 
-    res = xoip_build_XA_msg(track, callref, data, 
+    xoip_build_XA_msg(track, callref, data, 
                         buf, sizeof(buf) -1);
-
-    res = send_f1_packet(buf, strlen(buf));
-
-
+    send_f1_packet(buf, strlen(buf));
     return 0;
 }
 
@@ -165,6 +162,9 @@ static int xoip_channel_del(int track, int callref)
         if((xcomm->track == track) && (xcomm->callref == callref)){
             AST_LIST_REMOVE_CURRENT(list);
             //ast_audiohook_destroy(&xcomm->audiohook);
+            if(xcomm->dsp){
+                ast_dsp_free(xcomm->dsp);
+            }
             free(xcomm);
             res = 0;
         }
@@ -176,22 +176,40 @@ static int xoip_channel_del(int track, int callref)
     return res;
 }
 
-/*!
- * \brief Add a new xoip communication into the communications list
- */
-static int xoip_channel_add(int track, int callref, struct ast_channel *chan)
+
+static struct xoip_comm* xoip_comm_new(int track, int callref, struct ast_channel *chan)
 {
     struct xoip_comm *xcomm;
     if(!(xcomm = ast_calloc(1, sizeof(*xcomm)))){
-        return -1;
+        return NULL;
     }
     //memset(xcomm->state, 0, sizeof(xcomm->state));
     xcomm->track = track;
     xcomm->callref = callref;
     xcomm->stop_tones = 0;
-    xcomm->tones_thread_id = AST_PTHREADT_NULL;
     xcomm->func_data_callback = data_callback_fn;
     xcomm->chan = chan;
+    xcomm->bridged_chan = NULL;
+    xcomm->dsp = ast_dsp_new();
+    ast_dsp_set_threshold(xcomm->dsp, 256);
+    int features = 0;
+    features |= DSP_FEATURE_DIGIT_DETECT;
+    ast_dsp_set_features(xcomm->dsp, features | DSP_DIGITMODE_RELAXDTMF);
+
+    return xcomm;
+
+}
+
+/*!
+ * \brief Add a new xoip communication into the communications list
+ */
+static int xoip_channel_add(int track, int callref, struct ast_channel *chan)
+{
+    struct xoip_comm *xcomm = xoip_comm_new(track, callref, chan);
+    if(!xcomm){
+        return -1;
+    }
+    //
     AST_LIST_LOCK(&xoip_comms);
     AST_LIST_INSERT_HEAD(&xoip_comms,xcomm, list);
     AST_LIST_UNLOCK(&xoip_comms);
@@ -199,6 +217,9 @@ static int xoip_channel_add(int track, int callref, struct ast_channel *chan)
     return 0;
 }
 
+/*!
+ *
+ */
 static struct xoip_comm* xoip_channel_get(int track, int callref)
 {
     struct xoip_comm *xcomm = NULL;
@@ -217,7 +238,26 @@ static struct xoip_comm* xoip_channel_get(int track, int callref)
 
 }
 
+/*!
+ *
+ */
+static struct xoip_comm* xoip_channel_find(struct ast_channel *chan)
+{
+    struct xoip_comm *xcomm = NULL;
 
+    AST_LIST_LOCK(&xoip_comms);
+    AST_LIST_TRAVERSE_SAFE_BEGIN(&xoip_comms, xcomm, list){
+        if(xcomm->chan == chan){
+            break;
+        }
+
+    }
+    AST_LIST_TRAVERSE_SAFE_END;
+    AST_LIST_UNLOCK(&xoip_comms);
+
+    return xcomm;
+
+}
 
 /*!
  * \brief Send the call notification state to f1.
@@ -226,7 +266,6 @@ static struct xoip_comm* xoip_channel_get(int track, int callref)
 static void send_f1_fh_packet(struct xoip_comm *xcomm, int state)
 {
     char buf[BUFLEN] = {'\0'};
-    int res = 0;
 
     if(xcomm == NULL){
         return;
@@ -238,10 +277,10 @@ static void send_f1_fh_packet(struct xoip_comm *xcomm, int state)
         return;
     }
 
-    res = xoip_build_Xh_msg(xcomm->track, xcomm->callref, state, xoip_exten_var,
+    xoip_build_Xh_msg(xcomm->track, xcomm->callref, state, xoip_exten_var,
                 buf,
                 sizeof(buf));
-    res = send_f1_packet(buf, strlen(buf));
+    send_f1_packet(buf, strlen(buf));
     ast_log(LOG_NOTICE, "Send the call state to the f1 for extention [%s] and state [%d].\n", xoip_exten_var, state);
 
 
@@ -303,7 +342,6 @@ static void do_translate_send_fh(struct xoip_comm *xcomm, enum ast_dial_result s
  */
 static void xoip_dial_state_callback(struct ast_dial *dial)
 {
-    struct ast_channel *chan;
     struct xoip_comm *xcomm = ast_dial_get_user_data(dial);
     if(xcomm == NULL){
         ast_log(LOG_WARNING, "Can not find XoIP communication.\n");
@@ -383,6 +421,8 @@ static  int do_xoip_commut(struct xoip_comm* xcomm){
 			ast_autoservice_chan_hangup_peer(caller, outbound);
                         return -1;
 	    }
+
+            xcomm->bridged_chan = outbound;
 	    res = ast_bridge_call(caller, outbound, &config);
             enum ast_dial_result state = ast_dial_state(dial);
             ast_autoservice_chan_hangup_peer(caller, outbound);
@@ -408,9 +448,16 @@ static  int do_xoip_commut(struct xoip_comm* xcomm){
  */
 int answer_fn(int track, int callref, char proto, int level){
     int res = 0;
+     char buf[BUFLEN];
+     memset(buf, 0, sizeof(buf));
+
+
     struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
     if(xcomm == NULL){
         ast_log(LOG_WARNING, "Can not find the xcomm for track [%d] and callref [%d].\n", track, callref);
+        xoip_build_Xg_msg(track, callref, 1,-1, buf, sizeof(buf));
+        send_f1_packet(buf, strlen(buf));
+
         return -1;
     }
     
@@ -421,30 +468,43 @@ int answer_fn(int track, int callref, char proto, int level){
 
     pbx_builtin_setvar_helper(xcomm->chan, XOIP_PROTOCOL_KEY, proto_str);
     pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, XOIP_STATE_VALUE_ANSWER);
+    ast_indicate(xcomm->chan, AST_CONTROL_RINGING);
 
     res = ast_answer(xcomm->chan);
 
-    if (ast_channel_state(xcomm->chan) != AST_STATE_UP){
-	res = ast_answer(xcomm->chan);
-        ast_log(LOG_DEBUG, "Channel answered for the track [%d] and callref  [%d].\n",track, callref);
-
-    }else{
-        ast_log(LOG_DEBUG, "Channel is not answered for the track [%d] and callref  [%d].\n",track, callref);
+    if(res){
+        ast_log(AST_LOG_ERROR, "Channel is not answered for the track [%d] and callref  [%d].\n",track, callref);
+        xoip_build_Xg_msg(track, callref, 1,res, buf, sizeof(buf));
+        send_f1_packet(buf, strlen(buf));
+        return -1;
     }
-    return res;
+    
+    /* send notificaiton that it is ringing */
+    xoip_build_Xg_msg(track, callref, 0, res, buf, sizeof(buf));
+    send_f1_packet(buf, strlen(buf));
+
+    return 0;
 }
 
 /*!
+ * \brief Commut/bridge a channel to the given number(callee)
  *
+ * \param track, the track number
+ * \param callref , the callref 
+ * \param callee, the destination to bridge
+ * \param trans, the transmittor identificator. This parameter is not used 
+ * \param volume, the volum for bridging
+ *
+ * \retval -1, on error xoip communication can be found
+ * \retval 0, on success
  *
  */
-int commut_fn(int track, int callref, char* callee, char* trans, char* volum){
-    int res = 0;
+int commut_fn(int track, int callref, char* callee, char* trans, char* volume){
   
     struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
     if(xcomm == NULL){
         ast_log(LOG_WARNING, "Can not find the xcomm for track [%d] and callref [%d].\n", track, callref);
-        return 0;
+        return -1;
     }
 
     pbx_builtin_setvar_helper(xcomm->chan, XOIP_COMMUT_EXTEN, callee);
@@ -454,24 +514,201 @@ int commut_fn(int track, int callref, char* callee, char* trans, char* volum){
     return 0;
 }
 
+int switch_protocol_fn(int track, int callref, char proto, int loudness)
+{
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+    int res = 0;
+
+    res = xoip_build_Xi_msg(track, callref, 1, -1, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed build X i packet.\n", track, callref);
+    }
+    return -1;
+}
+
+int ack_alarm_fn(int track, int callref){
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+    int res = 0;
+
+    res = xoip_build_Xk_msg(track, callref, 1, -1, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed build X k packet.\n", track, callref);
+    }
+    return -1;
+
+}
+
+int record_request_fn(int track, int callref, int record_track)
+{
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+    int res = 0;
+
+    res = xoip_build_Xm_msg(track, callref, 1, -1, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed build X m packet.\n", track, callref);
+    }
+    return -1;
+}
+
+int polling_fn(char *f1_request){
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+    int res = 0;
+    int status = 0;
+
+    res = xoip_build_XE_msg(status, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_ERROR, "XoIP : Failed build X E packet.\n");
+    }
+    return 0;
+}
+
+
 /*!
+ * \brief Adjust volume of the communication.
+ * \param track , the track number
+ * \param callref, the callref
+ * \param volume, the given volume
+ *
+ * \retval -1, on error the xoip communication can be find
+ * \retval 0, on success
  *
  */
-int hangup_fn(int track, int callref){
-    int res = 0;
-    struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
+int volume_adjust_fn(int track, int callref, int volume)
+{
+    struct xoip_comm *xcomm  = NULL;
+
+    if(volume <= 0 || volume > 10){
+        return -1;
+    }
+
+    xcomm = xoip_channel_get(track, callref);
     if(xcomm == NULL){
         ast_log(LOG_WARNING, "Can not find the xcomm for track [%d] and callref [%d].\n", track, callref);
         return 0;
     }
 
+       //
+    set_talk_volume(xcomm, volume);
+    set_listen_volume(xcomm, volume);    
+    return 0;
+}
+
+/*!
+ * \brief Send data to the caller channel
+ * \param track, the track number
+ * \param callref, the callref 
+ * \param mode_transfer, the transfer mode can be 
+ *      0 or 1 or 2 or 3 or 4
+ *      Please see X-ISDN protocole specificaiton :-) I'm lazy
+ *  \data, the data to transfer 
+ *  \mode_operator, the micro state : M to mute N to non mute
+ *  \break_record, the set off recording while sending data to the caller
+ *
+ *  \retval -1, on error : xoip communication can be found
+ *  \retval 0, on success 
+ *
+ */
+int send_data_fn(int track, int callref, int mode_transfer, char *data, char *mode_operator, char *break_record)
+{
+     char buf[BUFLEN];
+     memset(buf, 0, sizeof(buf));
+
+    struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
+    if(xcomm == NULL){
+        ast_log(LOG_WARNING, "XoIP : Failed find a valid communication for the track [%d] and the callref [%d].\n", track, callref);
+        return -1;
+    }
+
+
+    struct ast_channel *chan = xcomm->chan;
+    int tone_types = 0;
+    tone_types |= TONES_DTMF;
+
+    int res = xoip_generate_tones (chan, data, strlen(data),
+		     tone_types, 100);
+
+    /* build notificaiton message */
+    res = xoip_build_XL_msg(track, callref, res, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_WARNING, "XoIP : Failed build X L packet for the track [%d] and the callref [%d].\n", track, callref);
+    }
+
+    return 0;
+}
+
+
+int send_freq_fn(int track, int callref, int freq, int duration, int loudness, char* mode, char *break_record)
+{
+    int res = 0;
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+
+    loudness = 1024;
+    struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
+    if(xcomm == NULL){
+        ast_log(LOG_WARNING, "XoIP : Failed find a valid communication for the track [%d] and the callref [%d].\n", track, callref);
+        return -1;
+    }
+    /* adjust to the given duration to ms */
+    res = xoip_generate_freq(xcomm, freq, duration * 100, loudness);
+
+    res = xoip_build_Xf_msg(track, callref, 1, res, buf, sizeof(buf));
+
+    if(!res){
+        res = send_f1_packet(buf, strlen(buf));
+    }else{
+        ast_log(AST_LOG_WARNING, "XoIP : Failed build X f packet for the track [%d] and the callref [%d].\n", track, callref);
+    }
+
+
+    return 0;
+}
+
+
+
+/*!
+ *
+ */
+int hangup_fn(int track, int callref){
+    struct xoip_comm *xcomm  = xoip_channel_get(track, callref);
+    if(xcomm == NULL){
+        ast_log(LOG_WARNING, "Can not find the xcomm for track [%d] and callref [%d].\n", track, callref);
+        return 0;
+    }
+        
+    int causecode = 16;
+    ast_channel_softhangup_withcause_locked(xcomm->chan, causecode);
+
+    pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, XOIP_STATE_VALUE_HANGUP);
+
+#if 0
     if (ast_channel_state(xcomm->chan) != AST_STATE_DOWN){
-	res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
+	ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
         ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);
 
     }else{
         ast_log(LOG_DEBUG, "Channel is not hangup for the track [%d] and callref  [%d].\n",track, callref);
     }
+#endif 
     return 0;
 }
 
@@ -481,6 +718,13 @@ int hangup_fn(int track, int callref){
 struct f1_messages_handlers g_f1_handlers= {
             .answer = answer_fn,
             .commut = commut_fn,
+            .switch_protocol = switch_protocol_fn,
+            .ack_alarm = ack_alarm_fn,
+            .record_request = record_request_fn,
+            .polling = polling_fn,
+            .send_data = send_data_fn,
+            .volume_adjust = volume_adjust_fn,
+            .send_freq = send_freq_fn,
             .hangup = hangup_fn
         };
 
@@ -513,7 +757,7 @@ static int recv_f1_packet(char* buf, int maxsize)
  */
 static void f1comm_recv_handler(int sig)
 {
-    sig;
+    UNUSED(sig);
     char buf[BUFLEN];
     memset(buf, 0, sizeof(buf)); 
     int res = recv_f1_packet(buf, BUFLEN);
@@ -624,7 +868,7 @@ int init_f1_communication()
  */
 static void *dispatch_thread_handler(void *data)
 {
-    data;
+    UNUSED(data);
     ast_log(LOG_DEBUG, "Enter into the dispatcher thread\n.");
     char buf[BUFLEN];
     int i = 0;
@@ -704,71 +948,7 @@ static int load_config(void){
 	return 0;
 }
 
-/*! \brief The callback from the audiohook subsystem. We basically get a frame to have fun with */
-static int xoip_audiohook_callback(struct ast_audiohook *audiohook, struct ast_channel *chan, struct ast_frame *frame, enum ast_audiohook_direction direction)
-{
-	struct ast_datastore *datastore = NULL;
-	//struct mute_information *mute = NULL;
-        
 
-        //ast_log(AST_LOG_DEBUG, "XoIP : audohook called.\n");
-
-
-	/* If the audiohook is stopping it means the channel is shutting down.... but we let the datastore destroy take care of it */
-	if (audiohook->status == AST_AUDIOHOOK_STATUS_DONE) {
-		return 0;
-	}
-
-	ast_channel_lock(chan);
-
-        /* if not DTMF, just do it again */
-        if (frame->frametype != AST_FRAME_DTMF) {
-            ast_frfree(frame);
-	    return 0;
-        }
-
-         ast_log(AST_LOG_DEBUG, "XoIP : Get DTMF [%c]\n", frame->subclass.integer);
-
-
-        ast_frfree(frame);
-#if 0
-        /* If we have all the digits we expect, leave */
-        if(i >= maxsize)
-	    break;
-	    lastdigittime = ast_tvnow();
-        }
-
-        data[i] = '\0'; 
-#endif 
-
-#if 0
-	/* Grab datastore which contains our mute information */
-	if (!(datastore = ast_channel_datastore_find(chan, &mute_datastore, NULL))) {
-		ast_channel_unlock(chan);
-		ast_debug(2, "Can't find any datastore to use. Bad. \n");
-		return 0;
-	}
-
-	mute = datastore->data;
-#endif 
-
-#if 0
-
-	/* If this is audio then allow them to increase/decrease the gains */
-	if (frame->frametype == AST_FRAME_VOICE) {
-		ast_debug(2, "Audio frame - direction %s  mute READ %s WRITE %s\n", direction == AST_AUDIOHOOK_DIRECTION_READ ? "read" : "write", mute->mute_read ? "on" : "off", mute->mute_write ? "on" : "off");
-
-		/* Based on direction of frame grab the gain, and confirm it is applicable */
-		if ((direction == AST_AUDIOHOOK_DIRECTION_READ && mute->mute_read) || (direction == AST_AUDIOHOOK_DIRECTION_WRITE && mute->mute_write)) {
-			/* Ok, we just want to reset all audio in this frame. Keep NOTHING, thanks. */
-			ast_frame_clear(frame);
-		}
-	}
-#endif 
-	ast_channel_unlock(chan);
-
-	return 0;
-}
 
 static void *xoip_read_data_thread(void* data)
 {
@@ -808,47 +988,85 @@ static void *xoip_read_data_thread(void* data)
     }
     
     ast_log(AST_LOG_NOTICE, "XoIP : the read thread leave.\n");
+    //xcomm->tones_thread_id = AST_PTHREADT_NULL;
 
     pthread_exit(0);
 
 }
 
+static void hook_destroy_cb(void *framedata)
+{
+	ast_free(framedata);
+        ast_log(AST_LOG_NOTICE, "XoIP : hook_destroy_cb called.\n");
+}
 
+static struct ast_frame *hook_frame_event_cb(struct ast_channel *chan, struct ast_frame *frame, enum ast_framehook_event event, void *data)
+{
+        if (!frame) {
+		return frame;
+	}
+
+        if (event != AST_FRAMEHOOK_EVENT_READ) {
+		return frame;
+	}
+
+        
+        struct xoip_comm *xcomm = xoip_channel_find(chan);
+        if(xcomm == NULL){
+            ast_log(AST_LOG_WARNING, "XoIP : Failed find the xoip communication for the channel [%s].\n",
+                    ast_channel_name(chan));
+            return frame;
+        }
+
+#if 0
+        if (frame->frametype == AST_FRAME_VOICE) {
+	    frame = ast_dsp_process(chan, xcomm->dsp, frame);
+	    if (frame->frametype == AST_FRAME_DTMF) {
+	        ast_log(AST_LOG_NOTICE, "XoIP : %s on Channel %s DTMF %d.\n", 
+                        event == AST_FRAMEHOOK_EVENT_READ ? "<--Read" : "--> Write", 
+                        ast_channel_name(chan),
+                        frame->subclass.integer);
+                        return frame;
+		} if(volume <= 0 || volume > 10){
+        return -1;
+    }
+
+        }
+#endif 
+        struct ast_frame *frame2 = ast_dsp_process(chan, xcomm->dsp, frame);
+        if(!frame2){
+            ast_log(AST_LOG_WARNING, "XoIP : Bad DSP received for the channel [%s].\n",
+                    ast_channel_name(chan));
+
+            frame2 = frame;
+        }
+	if(frame2->frametype == AST_FRAME_DTMF_END){
+            char buf[2] = {'\0'};
+            snprintf (buf, sizeof(buf), "%c", frame2->subclass.integer);
+            /* activate for debug must be removed  */
+            //print_frame(frame);
+            xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
+            
+        }
+	return frame2;
+}
+
+ 
 
 static int process_incomming_alarm(int track, int callref, struct ast_channel *chan, const char *data){
 	int res = 0;
-        struct ast_frame *f = NULL;
         char buf[BUFLEN];
         memset(buf, 0, sizeof(buf));
         struct xoip_comm *xcomm =  xoip_channel_get(track, callref);
-
-#if 0
-        struct xoip_comm_data_callback *xcomm_callback = NULL;
-
-        died
-
-        if (!(xcomm_callback = ast_calloc(1, sizeof(*xcomm_callback)))) {
-		return -1;
-	}
-        xcomm_callback->xcomm = xcomm;
-        xcomm_callback->func_data_callback = data_callback_fn;
-
-
-        //pthread_t thread_id = AST_PTHREADT_NULL;
-#endif 
-
-        if (ast_channel_state(xcomm->chan) != AST_STATE_UP){
-            res = ast_answer(xcomm->chan);
-        }
+        /* the incomming channel must be answered and F1 notified by X g messages */
 
 	if (ast_set_write_format_by_id(xcomm->chan,AST_FORMAT_ALAW)) {
 		ast_log(LOG_WARNING, "XoIP: Unable to set write format to a-law on %s\n",ast_channel_name(xcomm->chan));
 		return -1;
 	}
-
         res = ast_safe_sleep(chan, 500);
         
-        const char *invitation_data = "81"; //A**A8181";
+        const char *invitation_data = "A**A8181";
         int tone_types = 0;
         tone_types |= TONES_DTMF;
 
@@ -859,30 +1077,9 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
             return -1;
         }
 
-#if 1
-        pthread_t thread_id = AST_PTHREADT_NULL;
 
-        if (ast_pthread_create_detached_background(&thread_id, NULL,
-			xoip_read_data_thread, xcomm)) {
-		ast_log(LOG_ERROR, "XoIP : Failed to start the read data thread.\n");
-                return -1;
-	}
-        xcomm->tones_thread_id = thread_id;
-
-#endif
-
-#if 0
-        ast_audiohook_init(&xcomm->audiohook, AST_AUDIOHOOK_TYPE_MANIPULATE, "XoIP", AST_AUDIOHOOK_MANIPULATE_ALL_RATES);
-	xcomm->audiohook.manipulate_callback = xoip_audiohook_callback;
-#endif 
-
-        if (ast_audiohook_attach(xcomm->chan, &xcomm->audiohook)) {
-		ast_log(LOG_ERROR, "XoIP : Failed to attach audiohook for muting channel %s\n", ast_channel_name(chan));
-		return -1;
-	}
-        
-        //for (;;) {
-        while (ast_waitfor(chan, -1) > -1){
+        int waiting = 1000;
+        while (ast_waitfor(chan, waiting) > -1){
             /* If we fail to read in a frame, that means they hung up */
             if(ast_check_hangup(chan)) {
                 ast_log(LOG_NOTICE, "XoIP : process alarm. Channel [%s]. HANGUP\n", 
@@ -893,26 +1090,34 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
                 const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
                 if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
                     // so far so good that is not job for me
-                    xcomm->stop_tones = 1;
+                    //xcomm->stop_tones = 1;
                     break;
                 }
 
                 if(xoip_state_var != NULL  && strcmp(xoip_state_var, XOIP_STATE_VALUE_HANGUP) == 0){
-                    res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
+                    //res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
                     ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);
                     break;
                 }
 
             }
+            /* */
+
+            memset(buf, 0, sizeof(buf));
+            res = xoip_read_data(xcomm, buf, sizeof(buf) - 1, 2000);
+            if(res == -1){
+                ast_log(AST_LOG_NOTICE, "XoIP : Failed raed data on channel [%s].\n", 
+                        ast_channel_name(chan));
+                
+            }
+            if(strlen(buf) > 0){
+                xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
+            }
+            
         } /* end of while  */
 
-#if 0       
-        if(!xcomm_callback){
-            ast_free(xcomm_callback);
-        }
-#endif 
         ast_log(LOG_NOTICE, "XoIP : Leave process_incomming_alarm.\n");
-	return res;
+	return 0;
 
 }
 
@@ -928,12 +1133,18 @@ static int xoip_exec(struct ast_channel *chan, const char *data)
 {
 	int res = 0;
 	ast_log(LOG_NOTICE, "XoIP : starting with data : [%s].", data);
-        int state = ast_check_hangup(chan);
+        //int state = ast_check_hangup(chan);
         if(ast_check_hangup(chan)) {
             ast_log(LOG_NOTICE, "XoIP : Early channel [%s] HANGUP.\n",
                     ast_channel_name(chan));
             return 0;
         }
+
+        struct ast_framehook_interface interface = {
+		.version = AST_FRAMEHOOK_INTERFACE_VERSION,
+		.event_cb = hook_frame_event_cb,
+		.destroy_cb = hook_destroy_cb,
+	};
 
         char buf[BUFLEN];
         int track = get_current_track();
@@ -965,10 +1176,18 @@ static int xoip_exec(struct ast_channel *chan, const char *data)
         /* ringing to the caller */
         ast_indicate(chan, AST_CONTROL_RINGING);
 
-        //for (;;) {
+        /* */
+        int i = 0;
+        struct frame_trace_data *framedata;
+        char *value = "DTMF_END";
+        if (!(framedata = ast_calloc(1, sizeof(*framedata)))) {
+		return 0;
+	}
+
+	interface.data = framedata;
+
         while (ast_waitfor(chan, -1) > -1){
             /* If we fail to read in a frame, that means they hung up */
-            int state = ast_check_hangup(chan);
             if(ast_check_hangup(chan)) {
                 ast_log(LOG_NOTICE, "xoip: xoip_exec detect hangup channel [%s]. Bye\n", ast_channel_name(chan));
 		break;
@@ -990,8 +1209,8 @@ static int xoip_exec(struct ast_channel *chan, const char *data)
 
                      
                 if(xoip_state_var != NULL  && strcmp(xoip_state_var, XOIP_STATE_VALUE_HANGUP) == 0){
-                    res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
-                    ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);
+                    /*res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
+                    ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);*/
                     break;
 
                 }
@@ -1004,16 +1223,23 @@ static int xoip_exec(struct ast_channel *chan, const char *data)
         
         if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
             //pbx_builtin_setvar_helper(xcomm->chan, "XOIP_STATE", "");
+            ast_channel_lock(chan);
+	    i = ast_framehook_attach(chan, &interface);
+
+            ast_log(AST_LOG_WARNING, 
+                     "xoip: ast framehool attached to [%s] with result [%d].\n",
+                     ast_channel_name(chan), i);
+
+
+            ast_channel_unlock(chan);
+
             do_xoip_commut(xcomm);
         }
 
-        if(xcomm->tones_thread_id != AST_PTHREADT_NULL){
-            xcomm->stop_tones = 1;
-            /* if I understand well detached background thread terminated by itself */
-            //pthread_join(xcomm->tones_thread_id, NULL);
-
+        /* detach event callback */      
+        if(i > 0){
+            ast_framehook_detach(xcomm->chan, i);
         }
-
 
         res = xoip_channel_del(track, callref);
         if(res < 0){
@@ -1025,6 +1251,10 @@ static int xoip_exec(struct ast_channel *chan, const char *data)
                 buf,
                 sizeof(buf));
         res = send_f1_packet(buf, strlen(buf));
+        
+        ast_log(LOG_NOTICE, "XoIP : Leave xoip_exec.\n");
+
+
         return 0;
 }
 

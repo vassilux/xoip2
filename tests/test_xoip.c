@@ -36,18 +36,37 @@ ASTERISK_FILE_VERSION(__FILE__, "")
 #include "asterisk/config.h" /* PARSE_PORT_* */
 
 /* xoip internal includes */
+#include "xoip_types.h"
 #include "xoip_utils.h"
 #include "xoip_messages.h"
 
-/* helper variables for check if the test passed */
+/* helper variables for check if the test passed (by test function type  */
 static int g_answer_test_ok = 0;
 static int g_commut_test_ok = 0;
 static int g_hangup_test_ok = 0;
+static int g_send_data_test_ok = 0;
+static int g_volume_adjust_test_ok = 0;
+static int g_send_freq_test_ok = 0;
 
 /* */
 int g_track = 1;
 int g_callref = 9999;
 
+/* */
+static int g_volume_adjust_volume = 5;
+
+/* */
+static int g_send_data_mode_transfer = 1;
+static char *g_send_data_data = "12345";
+static char *g_send_data_mode_operator = "M";
+static char *g_send_data_break_operator = "H";
+
+/* */
+static int g_send_freq_feq = 2100;
+static int g_send_freq_duration = 5;
+static int g_send_freq_level = 50;
+static char *g_send_freq_mode = "M";
+static char *g_send_freq_break_record = "H";
 /* 
  * START of the callback messages parssing 
  *
@@ -75,6 +94,72 @@ int commut_fn(int track, int callref, char* callee, char* trans, char* volum){
     g_commut_test_ok++;
     ast_log(AST_LOG_NOTICE, "Test commut_fn called : [%d].\n", g_commut_test_ok);
     return res;
+}
+
+int send_data_fn(int track, int callref, int mode_transfer, char *data, char* mode_operator, char* break_record){
+
+    if(mode_transfer != g_send_data_mode_transfer){
+        ast_log(AST_LOG_ERROR, "Failed test send_data.\n");
+        ast_log(AST_LOG_ERROR, "Mode transfer origin : %d reveived : %d.\n", g_send_data_mode_transfer, mode_transfer);
+        return -1;
+    }
+
+    if(strcmp(data, g_send_data_data) != 0){
+        ast_log(AST_LOG_ERROR, "Failed test send_data.\n");
+        ast_log(AST_LOG_ERROR, "Data origin : %s reveived : %s.\n", g_send_data_data, data);
+        return -1;
+
+    }
+
+    
+    if(strcmp(mode_operator, g_send_data_mode_operator) != 0){
+        ast_log(AST_LOG_ERROR, "Failed test send_data.\n");
+        ast_log(AST_LOG_ERROR, "Mode operator origin : %s reveived : %s.\n", g_send_data_mode_operator, mode_operator);
+        return -1;
+
+    }
+
+    if(strcmp(break_record, g_send_data_break_operator) != 0){
+        ast_log(AST_LOG_ERROR, "Failed test send_data.\n");
+        ast_log(AST_LOG_ERROR, "Break operator origin : %s reveived : %s.\n", g_send_data_break_operator, break_record);
+        return -1;
+
+    }
+
+
+
+    g_send_data_test_ok++;
+    ast_log(AST_LOG_NOTICE, "Test send_data : [%d].\n", g_send_data_test_ok);
+    return 0;
+
+}
+
+int volume_adjust_fn(int track, int callref, int volume){
+    if(volume != g_volume_adjust_volume){
+        ast_log(AST_LOG_ERROR, "Failed test volume_adjust.\n");
+        ast_log(AST_LOG_ERROR, "Volume  original : %d reveived : %d.\n", g_volume_adjust_volume, volume);
+        return -1;
+
+    }
+
+    g_volume_adjust_test_ok++;
+    ast_log(AST_LOG_NOTICE, "Test volume_adjust_fn : [%d].\n", g_volume_adjust_test_ok);
+    return 0;
+}
+
+
+int send_freq_fn(int track, int callref, int freq, int duration, int level, char* mode, char *break_record)
+{
+        if(freq != g_send_freq_feq || duration != g_send_freq_duration || level != g_send_freq_level){
+        ast_log(AST_LOG_ERROR, "Failed test send_freq_fn.\n");
+        ast_log(AST_LOG_ERROR, "Frequance original : %d reveived : %d.\n", g_send_freq_feq, freq);
+        ast_log(AST_LOG_ERROR, "Duration original : %d reveived : %d.\n", g_send_freq_duration, duration);
+        ast_log(AST_LOG_ERROR, "Level original : %d reveived : %d.\n", g_send_freq_level, level);
+        return -1;
+    }
+    g_send_freq_test_ok++;
+    ast_log(AST_LOG_NOTICE, "Test send_freq_fn called : [%d].\n", g_send_freq_test_ok);
+    return 0;
 }
 
 
@@ -179,6 +264,9 @@ AST_TEST_DEFINE(test_f1_messages_handler)
         struct f1_messages_handlers handlers= {
             .answer = answer_fn,
             .commut = commut_fn,
+            .send_data = send_data_fn,
+            .volume_adjust = volume_adjust_fn,
+            .send_freq = send_freq_fn,
             .hangup = hangup_fn
         };
         //
@@ -222,26 +310,65 @@ AST_TEST_DEFINE(test_f1_messages_handler)
             ast_test_status_update(test, "Test buffer length %d but get the response %d.\n", strlen(buf),res);
             return AST_TEST_FAIL;
         }
+#if 1
+        /* */
+        memset(buf,0,sizeof(buf));
+        sprintf(buf,"F L,%02d,%04X,%01d,%s,%s,%s\r", 
+                g_track, g_callref, g_send_data_mode_transfer,
+                g_send_data_data, g_send_data_mode_operator,g_send_data_break_operator);
+        res = process_message(buf, strlen(buf), &handlers);
+#endif 
 
+#if 1
+        /* */
+        memset(buf,0,sizeof(buf));
+        snprintf(buf, sizeof(buf),"F V,%02d,%04X,%01d\r", 
+                g_track, g_callref, g_volume_adjust_volume);
+
+        res = process_message(buf, strlen(buf), &handlers);
+#endif
+        /* */
+
+#if 1
+        memset(buf,0,sizeof(buf));
+        snprintf(buf, sizeof(buf),"F F,%02d,%04X,%04d,%04d,%03d,%s,%s\r", 
+                g_track, g_callref, g_send_freq_feq, g_send_freq_duration, g_send_freq_level,g_send_freq_mode,g_send_freq_break_record);
+
+        res = process_message(buf, strlen(buf), &handlers);
+#endif
+        /* check different values of testing */
         
-        ast_log(AST_LOG_NOTICE, "Leave on success test f1 messages handler.\n");
-        /* basic idea is to check the value after callback calls but is not working. */
-
-        /*if(g_answer_test_ok > 0){
+        if(g_answer_test_ok <= 0){
              ast_test_status_update(test, "Test answer message did not passed.\n");
             return AST_TEST_FAIL;
         }
 
-        if(g_commut_test_ok > 0){
+        if(g_commut_test_ok <= 0){
              ast_test_status_update(test, "Test commut message did not pasesd.\n");
             return AST_TEST_FAIL;
         }
+        
 
-        if(g_hangup_test_ok > 0){
-             ast_test_status_update(test, "Test hangup message did not passed.\n");
+        if(g_hangup_test_ok <= 0){
+            ast_test_status_update(test, "Test hangup message did not passed.\n");
             return AST_TEST_FAIL;
-        }*/
+        }
 
+        if(g_send_data_test_ok <= 0){
+            ast_test_status_update(test, "Test send data message did not passed.\n");
+            return AST_TEST_FAIL;
+
+        }
+
+        if(g_volume_adjust_test_ok <= 0){
+            ast_test_status_update(test, "Test volume adjust message did not passed.\n");
+            return AST_TEST_FAIL;
+        }
+
+        if(g_send_freq_test_ok <= 0){
+            ast_test_status_update(test, "Test send freq message did not passed.\n");
+            return AST_TEST_FAIL;
+        }
 
 
         return  AST_TEST_PASS;
