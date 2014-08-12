@@ -39,6 +39,7 @@
 #include "asterisk/app.h"
 #include "asterisk/dsp.h"
 #include "asterisk/indications.h"
+#include "asterisk/features.h"
 
 #include "xoip_types.h"
 #include "xoip_utils.h"
@@ -438,7 +439,6 @@ static int xoip_generate_dtmf_tones(struct ast_channel *chan, const char *data, 
     if(ast_opt_transmit_silence){
         silgen = ast_channel_start_silence_generator(chan);
     }
-
     res = ast_safe_sleep(chan, 100);
     if(res){
         goto dtmf_tones_cleanup;
@@ -518,7 +518,7 @@ int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loud
         if(ms < 0){
             ast_log(AST_LOG_ERROR, "XoIP [%02d:%04X] : Error while generating tone.\n",
                     xcomm->track, xcomm->callref);
-            break;
+            break;ast_masq_park_call_exten(struct ast_channel *park_me, struct ast_channel *parker, const char *park_exten, const char *park_context, int timeout, int *extout)
         }
 
         if(ms == 0){ /* all done */
@@ -618,8 +618,10 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
     return res;
 }
 
-
-int set_talk_volume(struct xoip_comm *xcomm, int volume)
+/*!
+ *
+ */
+int xoip_set_talk_volume(struct xoip_comm *xcomm, int volume)
 {
 	char gain_adjust;
 
@@ -631,7 +633,10 @@ int set_talk_volume(struct xoip_comm *xcomm, int volume)
 	return ast_channel_setoption(xcomm->chan, AST_OPTION_RXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
 }
 
-int set_listen_volume(struct xoip_comm *xcomm, int volume)
+/*!
+ *
+ */
+int xoip_set_listen_volume(struct xoip_comm *xcomm, int volume)
 {
 	char gain_adjust;
 
@@ -642,6 +647,59 @@ int set_listen_volume(struct xoip_comm *xcomm, int volume)
 
 	return ast_channel_setoption(xcomm->chan, AST_OPTION_TXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
 }
+
+/*!
+ *
+ */
+int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)
+{
+    const char *park_exten = ".X";
+    const char *park_context = "xoip-commut";
+    int timeout = 5 * 60000;
+    int extout = 0;
+    int res = 0;
+    struct ast_channel *chan = xcomm->chan;
+    struct ast_channel *bc  = ast_bridged_channel(xcomm->chan);
+    if(!bc){
+        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed find bridged channel.\n",
+                xcomm->track, xcomm->callref);
+        return -1;
+    }
+
+#if 0
+    ast_channel_lock(xcomm->chan);
+    ast_set_flag(ast_channel_flags(xcomm->chan), AST_FLAG_BRIDGE_HANGUP_DONT);
+    ast_channel_unlock(xcomm->chan);
+    int res = ast_masq_park_call_exten(xcomm->chan, bc,
+            park_exten, park_context, timeout, &extout);
+    ast_verb(4, "XoIP[%02d,%04X] : Queuing(park) a call with result [%d] and extout [%d].\n",
+            xcomm->track, xcomm->callref, res, extout);
+    xcomm->extout = extout;
+#endif 
+    //ast_autoservice_chan_hangup_peer(xcomm->chan, bc);
+    
+     ast_verb(4, "XoIP[%02d,%04X] : Try and bridging caller [%s] and peer [%s].\n",
+                xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan), 
+                ast_channel_name(bc));
+
+
+    //ast_set_flag(ast_channel_flags(xcomm->chan), AST_FLAG_BRIDGE_HANGUP_DONT);
+    //ast_softhangup(xcomm->chan, AST_SOFTHANGUP_UNBRIDGE);
+    char *context = "xoip-comm-waiting";
+    char *exten = "8181";
+    int pi = 1;
+     if (ast_channel_pbx(chan)) {
+			ast_channel_lock(chan);
+			/* don't let the after-bridge code run the h-exten */
+			ast_set_flag(ast_channel_flags(chan), AST_FLAG_BRIDGE_HANGUP_DONT);
+			ast_channel_unlock(chan);
+		}
+		res = ast_async_goto(chan, context, exten, pi);
+		    
+
+    return res;
+}
+
 
 
 /** helpers **/

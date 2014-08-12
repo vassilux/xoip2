@@ -70,6 +70,8 @@ struct f1_messages_handlers
      * \brief Process (F R) message from f1 endpoint.
      */
     int (*hangup) (int track, int callref);
+
+    int (*queuing_call)(int track, int callref, char *mode);
 };
 
 
@@ -103,6 +105,8 @@ int xoip_build_Xm_msg(int voie, int callref, int state, int res, char *dest, int
 int xoip_build_XE_msg(int status, char *dest, int size);
 
 int xoip_build_Xr_msg (int voie, int callref, char *dest, int size);
+
+int xoip_build_Xw_msg (int voie, int callref, int res, char *dest, int size);
 
 
 int process_message (const char *buf, int size,

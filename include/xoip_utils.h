@@ -61,11 +61,11 @@ extern "C" {
 struct xoip_comm {
     int track;
     int callref;
+    int extout;
     unsigned int stop_tones:1;
     xoip_protocol_t proto;
     int (*func_data_callback) (int track, int callref, const char* data);
     struct ast_channel *chan;
-    struct ast_channel *bridged_chan;
     struct ast_dsp *dsp;
     struct ast_audiohook audiohook;
     AST_LIST_ENTRY(xoip_comm) list;
@@ -152,9 +152,11 @@ int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loud
 
 int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout);
 
-int set_talk_volume(struct xoip_comm *xcomm, int volume);
+int xoip_set_talk_volume(struct xoip_comm *xcomm, int volume);
 
-int set_listen_volume(struct xoip_comm *xcomm, int volume);
+int xoip_set_listen_volume(struct xoip_comm *xcomm, int volume);
+
+int xoip_queuing_call(struct xoip_comm *xcomm, char *mode);
 
 /** helpers **/
 void print_frame(struct ast_frame *frame);

@@ -110,7 +110,7 @@ int do_process_message (const char *buf, int size,
     }
 
   char type = messages[0][2];
-  /* this is special case for polling and mode request messages */
+  /* this is special case for ithe polling and mode request messages */
   if(type == 'N'){
       /* skip this one */
       return 0;
@@ -183,6 +183,9 @@ int do_process_message (const char *buf, int size,
         }
         handlers->volume_adjust(track, callref, volume);
     }
+      break;
+    case 'W':
+      handlers->queuing_call(track, callref, messages[3]);
       break;
     default:
       ast_log (AST_LOG_VERBOSE, " Processing but type not found : [%c]..\n",
@@ -380,6 +383,22 @@ int xoip_build_XA_msg (int voie, int callref, const char *data, char *dest, int 
 {
     snprintf (dest, size, "X A,%02d,%04d,%s\r",
 	    voie, callref, data); 
+    return 0;
+}
+
+/*!
+ * \brief Build X w message.
+ * The response for f1 F W request : qeueuing a call
+ */
+int xoip_build_Xw_msg(int voie, int callref, int res, char *dest, int size)
+{
+    snprintf (dest, size - 1, "X w,%02d,%04X,%01d\r",
+	    voie, callref, res);
+    
+    if(strlen(dest) == 0){
+      return -1;
+    }
+
     return 0;
 }
 
