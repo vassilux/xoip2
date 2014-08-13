@@ -1063,36 +1063,42 @@ static void cleanup_module(void)
  * \return 1 on load, 0 file does not exist
 */
 static int load_config(void){
-	memset((char*) config_f1_adr, 0, sizeof(config_f1_adr));
-	struct ast_config *cfg;
-	struct ast_flags config_flags = { 0 };
-	const char *p;
+    memset((char*) config_f1_adr, 0, sizeof(config_f1_adr));
+    struct ast_config *cfg;
+    struct ast_flags config_flags = { 0 };
+    const char *p;
 
-	/* loading application configuration */
-	cfg = ast_config_load(XOIP_CONFIG, config_flags);
-	if (cfg == CONFIG_STATUS_FILEMISSING || cfg == CONFIG_STATUS_FILEINVALID) {
-		ast_log(LOG_WARNING, "Could not load\n.");
-		return -1;
-	}
-	p = ast_variable_retrieve(cfg, "f1", "address");
-	if (!p) {
-		ast_log(LOG_WARNING, "Cannot load parameter address from f1 configuration section\n.");
-		return -1;
-	}
-	ast_copy_string(config_f1_adr, p, sizeof(config_f1_adr));
-	//config_f1_adr[sizeof(config_f1_adr) - 1] = '\0';
-	p = ast_variable_retrieve(cfg, "f1", "port");
-	if (!p) {
-		ast_log(LOG_WARNING, "Cannot load parameter port from f1 configuration section\n.");
-		return -1;
-	}
-	config_f1_port = atoi(p);
-	ast_log(LOG_NOTICE, "Configuration loaded f1 address : %s and port %d\n", config_f1_adr, config_f1_port);
-	return 0;
+    /* loading application configuration */
+    cfg = ast_config_load(XOIP_CONFIG, config_flags);
+    if (cfg == CONFIG_STATUS_FILEMISSING || cfg == CONFIG_STATUS_FILEINVALID) {
+        ast_log(LOG_WARNING, "Failed load the configuration file.\n");
+        return -1;
+    }
+
+    p = ast_variable_retrieve(cfg, "f1", "address");
+    if (!p) {
+        ast_log(LOG_WARNING, "Cannot load parameter address from f1 configuration section\n.");
+        return -1;
+    }
+
+    ast_copy_string(config_f1_adr, p, sizeof(config_f1_adr));
+    //config_f1_adr[sizeof(config_f1_adr) - 1] = '\0';
+    p = ast_variable_retrieve(cfg, "f1", "port");
+    if (!p) {
+        ast_log(LOG_WARNING, "Cannot load parameter port from f1 configuration section\n.");
+        return -1;
+    }
+
+    config_f1_port = atoi(p);
+    ast_log(LOG_NOTICE, "Configuration loaded f1 address : %s and port %d\n", config_f1_adr, config_f1_port);
+    return 0;
 }
 
 
-
+#if 0
+/*!
+ * Depricated and keep for an example
+ */
 static void *xoip_read_data_thread(void* data)
 {
     int res = 0;
@@ -1136,145 +1142,134 @@ static void *xoip_read_data_thread(void* data)
     pthread_exit(0);
 
 }
+#endif 
 
 static void hook_destroy_cb(void *framedata)
 {
-	ast_free(framedata);
-        ast_log(AST_LOG_NOTICE, "XoIP : hook_destroy_cb called.\n");
+    ast_free(framedata);
+    ast_log(AST_LOG_NOTICE, "XoIP : hook_destroy_cb called.\n");
 }
+
+/*!
+ * \brief Callback for get DTMF ot other
+ */
 
 static struct ast_frame *hook_frame_event_cb(struct ast_channel *chan, struct ast_frame *frame, enum ast_framehook_event event, void *data)
 {
-        if (!frame) {
-		return frame;
-	}
+    if (!frame) {
+        return frame;
+    }
 
-        struct xoip_comm *xcomm = xoip_channel_find(chan);
-        if(xcomm == NULL){
-            ast_log(AST_LOG_WARNING, "XoIP : Failed find the xoip communication for the channel [%s].\n",
-                    ast_channel_name(chan));
+    struct xoip_comm *xcomm = xoip_channel_find(chan);
+    if(xcomm == NULL){
+        ast_log(AST_LOG_WARNING, 
+                "XoIP : Failed find the xoip comm for the channel [%s].\n",
+                ast_channel_name(chan));
             return frame;
         }
 
+    /* skip if the hangup signaled */
+    if (!frame || (frame->frametype == AST_FRAME_CONTROL &&
+                (frame->subclass.integer == AST_CONTROL_HANGUP || 
+                 frame->subclass.integer == AST_CONTROL_BUSY ||
+                 frame->subclass.integer == AST_CONTROL_CONGESTION))) {
+        ast_log(AST_LOG_WARNING, 
+                "XoIP[%02d,%04X] : Hangup signaled , delete channel[%s].\n",
+                xcomm->track, xcomm->callref, 
+                ast_channel_name(chan));
+	return frame;
+    }
 
-        if (!frame || (frame->frametype == AST_FRAME_CONTROL &&
-				(frame->subclass.integer == AST_CONTROL_HANGUP || frame->subclass.integer == AST_CONTROL_BUSY ||
-					frame->subclass.integer == AST_CONTROL_CONGESTION))) {
-                        
-                        ast_log(AST_LOG_WARNING, "XoIP[%02d,%04X] : Hangup signaled , delete channel[%s].\n",
-                    xcomm->track, xcomm->callref, ast_channel_name(chan));
+    if (event != AST_FRAMEHOOK_EVENT_READ) {
+        return frame;
+    }
+    
+    struct ast_frame *frame2 = ast_dsp_process(chan, xcomm->dsp, frame);
+    if(!frame2){
+        ast_log(AST_LOG_WARNING, 
+                "XoIP[%02d,%04X] : Bad DSP received for the channel [%s].\n",
+                xcomm->track, xcomm->callref,ast_channel_name(chan));
+        frame2 = frame;
+    }
 
-                        
-			return frame;
-		}
+    if(frame2->frametype == AST_FRAME_DTMF_END){
+        char buf[2] = {'\0'};
+        snprintf (buf, sizeof(buf), "%c", frame2->subclass.integer);
+        //print_frame(frame);
+         xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
+    }
 
-        if (event != AST_FRAMEHOOK_EVENT_READ) {
-		return frame;
-	}
+    return frame2;
+}
 
-        
-        
-#if 0
-        if (frame->frametype == AST_FRAME_VOICE) {
-	    frame = ast_dsp_process(chan, xcomm->dsp, frame);
-	    if (frame->frametype == AST_FRAME_DTMF) {
-	        ast_log(AST_LOG_NOTICE, "XoIP : %s on Channel %s DTMF %d.\n", 
-                        event == AST_FRAMEHOOK_EVENT_READ ? "<--Read" : "--> Write", 
-                        ast_channel_name(chan),
-                        frame->subclass.integer);
-                        return frame;
-		} if(volume <= 0 || volume > 10){
+
+/*!
+ *
+ */
+static int process_incomming_alarm(int track, int callref, struct ast_channel *chan, const char *data){
+    int res = 0;
+    char buf[BUFLEN];
+    memset(buf, 0, sizeof(buf));
+    struct xoip_comm *xcomm =  xoip_channel_get(track, callref);
+    /* the channel must be answered */
+    /* F1 endpoint notified by X g messages */
+
+    if (ast_set_write_format_by_id(xcomm->chan,AST_FORMAT_ALAW)) {
+        ast_log(LOG_WARNING, 
+                "XoIP[%02d,%04X] : Unable to set write format to a-law on %s\n",
+                xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan));
         return -1;
     }
 
-        }
-#endif 
-        struct ast_frame *frame2 = ast_dsp_process(chan, xcomm->dsp, frame);
-        if(!frame2){
-            ast_log(AST_LOG_WARNING, "XoIP : Bad DSP received for the channel [%s].\n",
-                    ast_channel_name(chan));
+    res = ast_safe_sleep(chan, 500);
+    /* keep for test must be changed */       
+    const char *invitation_data = "A**A8181";
+    int tone_types = 0;
+    tone_types |= TONES_DTMF;
+    res = xoip_generate_tones(xcomm->chan, 
+            invitation_data, strlen(invitation_data), 
+            tone_types, 100);
+    if(res != 0){
+        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed to send dtmf.\n",
+                xcomm->track, xcomm-callref);
+        return -1;
+    }
 
-            frame2 = frame;
-        }
-	if(frame2->frametype == AST_FRAME_DTMF_END){
-            char buf[2] = {'\0'};
-            snprintf (buf, sizeof(buf), "%c", frame2->subclass.integer);
-            /* activate for debug must be removed  */
-            //print_frame(frame);
-            xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
-            
-        }
-	return frame2;
-}
-
- 
-
-static int process_incomming_alarm(int track, int callref, struct ast_channel *chan, const char *data){
-	int res = 0;
-        char buf[BUFLEN];
-        memset(buf, 0, sizeof(buf));
-        struct xoip_comm *xcomm =  xoip_channel_get(track, callref);
-        /* the incomming channel must be answered and F1 notified by X g messages */
-
-	if (ast_set_write_format_by_id(xcomm->chan,AST_FORMAT_ALAW)) {
-		ast_log(LOG_WARNING, "XoIP: Unable to set write format to a-law on %s\n",ast_channel_name(xcomm->chan));
-		return -1;
+    int waiting = 1000;
+    while (ast_waitfor(chan, waiting) > -1){
+        /* If we fail to read in a frame, that means they hung up */
+        if(ast_check_hangup(chan)) {
+            break;
 	}
-        res = ast_safe_sleep(chan, 500);
-        
-        const char *invitation_data = "A**A8181";
-        int tone_types = 0;
-        tone_types |= TONES_DTMF;
 
-        res = xoip_generate_tones(xcomm->chan, invitation_data, strlen(invitation_data), tone_types, 100);
+        if(xcomm != NULL){
+            const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan,
+                    XOIP_STATE_KEY);
+            if(xoip_state_var != NULL && 
+                strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
+                break;
+            }
 
-        if(res != 0){
-            ast_log(AST_LOG_ERROR, "XoIP : Failed to send dtmf.\n");
-            return -1;
+            if(xoip_state_var != NULL  && 
+                strcmp(xoip_state_var, XOIP_STATE_VALUE_HANGUP) == 0){
+                    break;
+            }
         }
-
-
-        int waiting = 1000;
-        while (ast_waitfor(chan, waiting) > -1){
-            /* If we fail to read in a frame, that means they hung up */
-            if(ast_check_hangup(chan)) {
-                ast_log(LOG_NOTICE, "XoIP : process alarm. Channel [%s]. HANGUP\n", 
-                        ast_channel_name(chan));
-		break;
-	    }
-            if(xcomm != NULL){
-                const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
-                if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
-                    // so far so good that is not job for me
-                    //xcomm->stop_tones = 1;
-                    break;
-                }
-
-                if(xoip_state_var != NULL  && strcmp(xoip_state_var, XOIP_STATE_VALUE_HANGUP) == 0){
-                    //res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
-                    ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);
-                    break;
-                }
-
-            }
-            /* */
-
-            memset(buf, 0, sizeof(buf));
-            res = xoip_read_data(xcomm, buf, sizeof(buf) - 1, 2000);
-            if(res == -1){
-                ast_log(AST_LOG_NOTICE, "XoIP : Failed raed data on channel [%s].\n", 
-                        ast_channel_name(chan));
-                
-            }
-            if(strlen(buf) > 0){
-                xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
-            }
-            
-        } /* end of while  */
-
-        ast_log(LOG_NOTICE, "XoIP : Leave process_incomming_alarm.\n");
-	return 0;
-
+        /* */
+        memset(buf, 0, sizeof(buf));
+        res = xoip_read_data(xcomm, buf, sizeof(buf) - 1, 2000);
+        if(res == -1){
+            ast_log(AST_LOG_NOTICE, 
+                    "XoIP[%02d, %04d] : Failed read data on channel [%s].\n", 
+                    xcomm->track, xcomm->callref, ast_channel_name(chan));
+        }
+        
+        if(strlen(buf) > 0){
+            xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
+        }
+    } /* end of while  */
+    
+    return 0;
 }
 
 /*!
@@ -1287,153 +1282,95 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
  */
 static int xoip_alarms(struct ast_channel *chan, const char *data)
 {
-	int res = 0;
-	ast_log(LOG_NOTICE, "XoIP : starting with data : [%s].", data);
-        //int state = ast_check_hangup(chan);
+    int res = 0;
+    ast_log(LOG_NOTICE, "XoIP : starting with data : [%s].", data);
+    
+    if(ast_check_hangup(chan)) {
+        ast_log(LOG_NOTICE, "XoIP : Early channel [%s] HANGUP.\n",
+                ast_channel_name(chan));
+        return 0;
+    }
+
+    struct ast_framehook_interface interface = {
+        .version = AST_FRAMEHOOK_INTERFACE_VERSION,
+	.event_cb = hook_frame_event_cb,
+	.destroy_cb = hook_destroy_cb,
+    };
+
+    char buf[BUFLEN];
+    int track = get_current_track();
+    int callref = get_current_callref();
+    xoip_channel_add(track, callref, chan);
+
+    struct xoip_comm *xcomm = xoip_channel_get(track, callref);
+    res = xoip_build_XC_msg(track, callref,ast_channel_exten(chan),
+            ast_channel_cdr(chan)->src,
+            ast_channel_cdr(chan)->clid,
+            buf,
+            sizeof(buf));
+    if(res  < 0){
+        ast_log(LOG_WARNING,
+                "XoIP[%02d,%04X]: Failed build X C message for channel [%s].\n",
+                track, callref, ast_channel_name(chan));
+        return -1;
+    }
+
+    res = send_f1_packet(buf, strlen(buf));
+
+    if(xcomm == NULL){
+        ast_log(LOG_WARNING,
+                "XoIP[%02d,%04X]: Failed add the communication to the global [%s].\n",
+                track, callref, ast_channel_name(chan));
+        return -1;
+    }
+    /* */
+    char *hangup_cb = "xoip-comm-hangup,s,1";
+    ast_pbx_hangup_handler_push(chan, hangup_cb);
+    /* ringing to the caller */
+    ast_indicate(chan, AST_CONTROL_RINGING);
+    
+    int i = 0;
+    struct frame_trace_data *framedata;
+    char *value = "DTMF_END";
+    if (!(framedata = ast_calloc(1, sizeof(*framedata)))) {
+        return 0;
+    }
+
+    interface.data = framedata;
+
+    ast_channel_lock(chan);
+    i = ast_framehook_attach(chan, &interface);
+    ast_verb(5, "XoIP[%02d,%04X]: Framehook attached with result [%d].\n",
+            xcomm->track, xcomm->callref, i);
+    ast_channel_unlock(chan);
+
+    while (ast_waitfor(chan, -1) > -1){
+        /* If we fail to read in a frame, that means they hung up */
         if(ast_check_hangup(chan)) {
-            ast_log(LOG_NOTICE, "XoIP : Early channel [%s] HANGUP.\n",
-                    ast_channel_name(chan));
-            return 0;
+            ast_verb(5, "XoIP[%02d,%04X]: XoIP detect hangup into xoip_exec for the channel [%s]. Bye\n",
+                    xcomm->track, xcomm->callref, ast_channel_name(chan));
+            break;
         }
 
-        struct ast_framehook_interface interface = {
-		.version = AST_FRAMEHOOK_INTERFACE_VERSION,
-		.event_cb = hook_frame_event_cb,
-		.destroy_cb = hook_destroy_cb,
-	};
+        if(xcomm != NULL){
+            const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
 
-        char buf[BUFLEN];
-        int track = get_current_track();
-        int callref = get_current_callref();
-        xoip_channel_add(track, callref, chan);
-
-        struct xoip_comm *xcomm = xoip_channel_get(track, callref);  
-
-        res = xoip_build_XC_msg(track, callref,ast_channel_exten(chan), 
-                ast_channel_cdr(chan)->src,
-                ast_channel_cdr(chan)->clid, 
-                buf,
-                sizeof(buf));
-        if(res  < 0){
-             ast_log(LOG_WARNING, 
-                     "xoip: Can not build X C message to F1 into channel [%s]. HANGUP\n",
-                     ast_channel_name(chan));
-             return -1;
-        }
-        res = send_f1_packet(buf, strlen(buf));
-
-        if(xcomm == NULL){
-            ast_log(LOG_WARNING, 
-                     "xoip: Can not add the incomming communication to the xoip communication list [%s].\n",
-                     ast_channel_name(chan));
-            return -1;
-
-        }
-        /* */
-        char *hangup_cb = "xoip-comm-hangup,s,1";
-        ast_pbx_hangup_handler_push(chan, hangup_cb);
-        /* ringing to the caller */
-        ast_indicate(chan, AST_CONTROL_RINGING);
-
-        /* */
-        int i = 0;
-        struct frame_trace_data *framedata;
-        char *value = "DTMF_END";
-        if (!(framedata = ast_calloc(1, sizeof(*framedata)))) {
-		return 0;
-	}
-
-	interface.data = framedata;
-
-        //pbx_builtin_setvar_helper(xcomm->chan, "XOIP_STATE", "");
-        ast_channel_lock(chan);
-	i = ast_framehook_attach(chan, &interface);
-
-        ast_verb(5, "XoIP[%02d,%04X]: Framehook attached with result [%d].\n",
-                     xcomm->track, xcomm->callref, i);
-        ast_channel_unlock(chan);
-
-        while (ast_waitfor(chan, -1) > -1){
-            /* If we fail to read in a frame, that means they hung up */
-            if(ast_check_hangup(chan)) {
-                ast_log(LOG_NOTICE, "XoIP[%02d,%04X]: XoIP detect hangup into xoip_exec for the channel [%s]. Bye\n",
-                        xcomm->track, xcomm->callref, ast_channel_name(chan));
-                break;
-            }
-
-            if(xcomm != NULL){
-                const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
-                               
-                if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_ANSWER) == 0){
+            if(xoip_state_var != NULL &&
+                    strcmp(xoip_state_var, XOIP_STATE_VALUE_ANSWER) == 0){
                     pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, "");
                     res = process_incomming_alarm(track, callref,chan, data);
-                    //break;
-                }
+            }
 
-                if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
+            if(xoip_state_var != NULL && 
+                    strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
                     /* stop the alarm processing */
                     pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, "");
-
                     do_xoip_commut(xcomm);
-
-                    //break;                     
-                }
-
-#if 0                    
-                if(xoip_state_var != NULL  && strcmp(xoip_state_var, XOIP_STATE_VALUE_HANGUP) == 0){
-                    /*res = ast_softhangup(xcomm->chan, AST_SOFTHANGUP_ALL);
-                    ast_log(LOG_DEBUG, "Channel hangup for the track [%d] and callref  [%d].\n",track, callref);*/
-                    break;
-              }
-#endif 
             }
         }
-#if 0
-        const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
-
-        
-        if(xoip_state_var != NULL && strcmp(xoip_state_var, XOIP_STATE_VALUE_COMMUT) == 0){
-            
-            //do_xoip_commut(xcomm);
-        }
-#endif 
-                /* detach event callback */      
-
-#if 0
-        if(xcomm->extout > 0) {
-            ast_verb(4, "XoIP[%02d,%04X] Keep the channel into list of actives channels.\n",
-                    xcomm->track, xcomm->callref);
-             return 0;
-	}
-#endif 
-
-#if 0
-        if(!(ast_channel_softhangup_internal_flag(chan) & 
-                            AST_SOFTHANGUP_ASYNCGOTO)){
-                    ast_log(LOG_NOTICE, "XoIP[%02d,%04X]: XoIP send X r for the channel [%s]. Bye\n", 
-                            xcomm->track, xcomm->callref, ast_channel_name(chan));
-
-            if(i > 0){
-                ast_framehook_detach(xcomm->chan, i);
-            }
-
-            res = xoip_channel_del(track, callref);
-            if(res < 0){
-                ast_log(LOG_DEBUG, 
-                    "xoip : can not find the given channel.\n");
-            }
-            memset(buf, 0, sizeof(buf));
-            res = xoip_build_Xr_msg(track, callref,
-                buf,
-                sizeof(buf));
-            res = send_f1_packet(buf, strlen(buf));
-        
-            ast_log(LOG_NOTICE, "XoIP : Leave xoip_exec.\n");
-
-                    
-        }       
-#endif 
-        return 0;
+    }
+    /* detach event callback */      
+    return 0;
 }
 
 /*!
@@ -1483,36 +1420,37 @@ static int xoip_hangup(struct ast_channel *chan, const char *data)
  */
 static int xoip_park(struct ast_channel *chan, const char *data)
 {
-    /* */
-     struct xoip_comm *xcomm = xoip_channel_find(chan);
+    /* try identify the xoip active communication */
+    struct xoip_comm *xcomm = xoip_channel_find(chan);
     if(!chan){
-        ast_log(AST_LOG_WARNING, "XoIP : Failed to find the xoip valid communication for the channel[%s].\n",
+        ast_log(AST_LOG_WARNING, 
+                "XoIP : Failed to find the xoip comm for the channel[%s].\n",
                 ast_channel_name(chan));
         return -1;
     }
 
-     while (ast_waitfor(chan, -1) > -1){
-            /* If we fail to read in a frame, that means they hung up */
-            if(ast_check_hangup(chan)) {
-                ast_log(LOG_NOTICE, "XoIP[%02d,%04X]: XoIP detect hangup into xoip_exec for the channel [%s]. Bye\n",
-                        xcomm->track, xcomm->callref, ast_channel_name(chan));
-                break;
-            }
+    while (ast_waitfor(chan, -1) > -1){
+        /* If we fail to read in a frame, that means they hung up */
+        if(ast_check_hangup(chan)) {
+            ast_log(LOG_NOTICE, 
+                    "XoIP[%02d,%04X]: XoIP detect hangup the channel [%s]. Bye\n",
+                    xcomm->track, xcomm->callref, ast_channel_name(chan));
+            break;
+        }
 
-            if(xcomm != NULL){
-                const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
-                               
-                if(xoip_state_var != NULL && strcmp(xoip_state_var,
-                            XOIP_STATE_VALUE_COMMUT) == 0){
-                    /* clean up state variable value */
-                    pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, "");
-                    do_xoip_commut(xcomm);
-                    /* Finish the park after commut because the call
-                     * can be set on wait state.
-                     * */
-                    break;                     
-                }
+        if(xcomm != NULL){
+            const char* xoip_state_var = pbx_builtin_getvar_helper(xcomm->chan, XOIP_STATE_KEY);
+            if(xoip_state_var != NULL && strcmp(xoip_state_var,
+                        XOIP_STATE_VALUE_COMMUT) == 0){
+                /* clean up the state variable value */
+                pbx_builtin_setvar_helper(xcomm->chan, XOIP_STATE_KEY, "");
+                do_xoip_commut(xcomm);
+                /* Finish the park after commut because the call
+                 * can be set on wait state.
+                * */
+                break;                     
             }
+        }
     }
     return 0;
 }
