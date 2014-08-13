@@ -1,0 +1,28 @@
+[test-xoip-alarms-receiver]
+exten = _X.,1,NoOp(test-xoip-alarms-receiver)
+same => n,XoIPAlarms("Test")
+same => n,Hangup()
+;same => n,Playback(tt-monkeys)
+;same => n,Hangup()
+
+[xoip-commut]
+exten = _X.,1,NoOp(Comming to xoip-commut with extention ${EXTEN})
+same = n,SIPAddHeader(Call-Info: 192.168.3.20  ;answer-after=3)
+same = n,SIPAddHeader(Alert-Info: 192.168.3.20  ;info=alert-autoanswer;delay=3)
+same = n,Dial(SIP/6006)
+exten = h,1,NoOP(XoIP commut hangup)
+same = n,Hangup()
+;same => n,Dial(DAHDI/g1/${EXTEN})
+
+[xoip-comm-waiting]
+exten = _X.,1,NoOp(xoip-comm-waiting)
+;same = n,MusicOnHold()
+same = n,XoIPPark()
+;Playback(tt-monkeys)
+;same = n,Hangup()
+;same => n,Dial(DAHDI/g1/${EXTEN})
+
+[xoip-comm-hangup]
+exten => s,1,NoOp(xoip-comm-hangup called)
+same => n,XoIPHangup()
+same => n,Return()
