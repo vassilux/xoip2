@@ -661,9 +661,8 @@ int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)
     struct ast_channel *chan = xcomm->chan;
     struct ast_channel *bc  = ast_bridged_channel(xcomm->chan);
     if(!bc){
-        ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed find bridged channel.\n",
+        ast_log(AST_LOG_NOTICE, "XoIP[%02d,%04X] : Failed find bridged channel.\n",
                 xcomm->track, xcomm->callref);
-        return -1;
     }
 
 #if 0
@@ -678,9 +677,9 @@ int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)
 #endif 
     //ast_autoservice_chan_hangup_peer(xcomm->chan, bc);
     
-     ast_verb(4, "XoIP[%02d,%04X] : Try and bridging caller [%s] and peer [%s].\n",
+     /*ast_verb(4, "XoIP[%02d,%04X] : Try and bridging caller [%s] and peer [%s].\n",
                 xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan), 
-                ast_channel_name(bc));
+                ast_channel_name(bc));*/
 
 
     //ast_set_flag(ast_channel_flags(xcomm->chan), AST_FLAG_BRIDGE_HANGUP_DONT);
