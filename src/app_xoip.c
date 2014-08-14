@@ -85,7 +85,9 @@ static struct {
 } dispatch_thread = {
 	.id = AST_PTHREADT_NULL,
 };
-
+/*!
+ * \brief The F1 endpoint socket wrapper
+ */
 static struct {
     int sfd;
     struct sockaddr_in si_other;
@@ -1260,17 +1262,17 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
             }
         }
         /* */
-        memset(buf, 0, sizeof(buf));
+        /*memset(buf, 0, sizeof(buf));
         res = xoip_read_data(xcomm, buf, sizeof(buf) - 1, 2000);
         if(res == -1){
             ast_log(AST_LOG_NOTICE, 
                     "XoIP[%02d, %04d] : Failed read data on channel [%s].\n", 
                     xcomm->track, xcomm->callref, ast_channel_name(chan));
-        }
+        }*/
         
-        if(strlen(buf) > 0){
+        /*if(strlen(buf) > 0){
             xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
-        }
+        }*/
     } /* end of while  */
     
     return 0;
