@@ -52,6 +52,31 @@ extern "C" {
 
 
 #define UNUSED(x) (void)(x)
+
+
+#define XOIP_CONFIG "xoip.conf"
+
+#define XOIP_STATE_KEY "XOIP_STATE"
+#define XOIP_STATE_VALUE_ANSWER "ANSWER"
+#define XOIP_STATE_VALUE_HANGUP "HANGUP"
+#define XOIP_STATE_VALUE_COMMUT "COMMUT"
+
+#define XOIP_PROTOCOL_KEY "XOIP_PROTOCOL"
+
+
+#define XOIP_COMMUT_CONTEXT "XOIP_COMMUT_CONTEXT"
+#define XOIP_COMMUT_EXTEN   "XOIP_COMMUT_EXTEN"
+
+
+
+/*!
+ * \brief Contexts used by xoip application
+ */
+static char *XOIP_CONTEXT_COMMUT ="xoip-commut";
+static char *XOIP_CONTEXT_WAIT = "xoip-comm-waiting";
+static char *XOIP_CONTEXT_HANGUP = "xoip-comm-hangup";
+
+
 /*!
  * \brief the xoip communication
  *

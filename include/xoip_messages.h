@@ -27,6 +27,11 @@ struct f1_messages_handlers
     
     /*!
      * \brief Process (F G), message from f1 endpoint.
+     *
+     * \param track The track number
+     * \param callref The call reference
+     * \param proto The protocol id
+     * \param loudness The loudness of communication
      */
     int (*answer) (int track, int callref, char proto, int loudness);
 

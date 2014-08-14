@@ -51,12 +51,12 @@ static int g_current_track = 0x0;
 
 
 /*!
- * \brief Generate a callref. 
+ * \brief The call reference genertor. 
  * This is naive way to do it.
  *
+ * \retval the callref value
  */
-int
-get_current_callref (void)
+int get_current_callref (void)
 {
   if (g_current_callref >= MAX_CALLREF)
     {
@@ -67,11 +67,12 @@ get_current_callref (void)
 }
 
 /*!
- * \brief Generate a track number
+ * \brief The track number generator.
  * This is naive way to do it.
+ *
+ * \retval the track number
  */
-int
-get_current_track (void)
+int get_current_track (void)
 {
   if (g_current_track >= MAX_TRACK)
     {
@@ -81,9 +82,13 @@ get_current_track (void)
   return g_current_track;
 }
 
-
-bool
-valid_protocol (int proto)
+/*!
+ * Check if the given number is a valid protocol
+ *
+ * \retval false on error
+ * \retval true on success
+ */
+bool valid_protocol (int proto)
 {
   switch (proto)
     {
@@ -142,8 +147,15 @@ valid_protocol (int proto)
     }
 }
 
-xoip_protocol_t
-get_protocol (int proto)
+
+/*!
+ * \brief Get XoIP protocole 
+ * \param proto The protocol's id
+ *
+ * return -1 on error
+ * return >=0 on success
+ */
+xoip_protocol_t get_protocol (int proto)
 {
 
   switch (proto)
@@ -254,10 +266,10 @@ get_protocol (int proto)
 }
 
 
-/* this part wiil be extracted to others h.c files */
-
-/*
-* Build a MuLaw data block for a single frequency tone
+/*!
+* This part wiil be extracted from app_alarmreceiver.c
+* Modified for alaw.
+* Build a aLaw data block for a single frequency tone
 */
 static void
 make_tone_burst (unsigned char *data, float freq, float loudness, int len,
@@ -340,7 +352,9 @@ static int send_tone_burst(struct ast_channel *chan, float freq, int duration, i
 
 #endif
 
-
+/*!
+ * Modificated ast_senddigit_begin
+ */
 static int xoip_senddigit_begin(struct ast_channel *chan, char digit)
 {
 	/* Device does not support DTMF tones, lets fake
@@ -393,6 +407,9 @@ static int xoip_senddigit_begin(struct ast_channel *chan, char digit)
 	return 0;
 }
 
+/*!
+ * Modificated ast_senddigit_end
+ */
 
 static int xoip_senddigit_end(struct ast_channel *chan, char digit, unsigned int duration)
 {
@@ -423,6 +440,9 @@ static int xoip_senddigit(struct ast_channel *chan, char digit, unsigned int dur
 	return xoip_senddigit_end(chan, digit, (duration >= XOIP_DEFAULT_EMULATE_DTMF_DURATION ? duration : XOIP_DEFAULT_EMULATE_DTMF_DURATION));
 }
 
+/*!
+ * Modificated ast_generate_dtmf_tones
+ */
 
 static int xoip_generate_dtmf_tones(struct ast_channel *chan, const char *data, int size, int duration, int between)
 {
@@ -467,8 +487,10 @@ dtmf_tones_cleanup:
 
 }
 
-int
-xoip_generate_tones (struct ast_channel *chan, const char *data, int size,
+/*!
+ *
+ */
+int xoip_generate_tones (struct ast_channel *chan, const char *data, int size,
 		     int tone_types, int duration)
 {
   int res = 0;
@@ -510,46 +532,25 @@ int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loud
     
     res = ast_playtones_start(chan, vol, tones,0);
     /* the following code is disabled because the application is crashing */
-#if 0
-    int ms = duration;
-    while(ms > 0){
-        ms = ast_waitfor(chan, ms);
-
-        if(ms < 0){
-            ast_log(AST_LOG_ERROR, "XoIP [%02d:%04X] : Error while generating tone.\n",
-                    xcomm->track, xcomm->callref);
-            break;ast_masq_park_call_exten(struct ast_channel *park_me, struct ast_channel *parker, const char *park_exten, const char *park_context, int timeout, int *extout)
-        }
-
-        if(ms == 0){ /* all done */
-            ast_verb(4, "XoIP [%02d:%04X] :All tones done.\n",
-                    xcomm->track, xcomm->callref);
-
-            break;
-        }
-    }
-    ast_playtones_stop(chan);
-
-#endif  
-        return 0;
+    return 0;
 }
 
 
-
+/*!
+ * \brief Read data from the given channel.
+ * Considered only DTMF
+ *
+ * \param xcomm The xoip communication
+ * \param data The buffer for received data from the channel
+ * \maxsize The maximal size of the data's buffer
+ * \timeout The timeout for ast_waitfor
+ *
+ * \retval -1 on error
+ * \retval 0 on success
+ */
 int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout)
 {
     int res = 0;
-#if 0
-    ast_stopstream(chan);
-    res = ast_waitfordigit(chan, timeout);
-    ast_playtones_stop(chan);
-    res = ast_app_getdata(chan, NULL, data, maxsize, 1);
-    ast_log (AST_LOG_DEBUG, "XoIP : read data [%s]  and length [%d] with the result [%d].\n", data, strlen(data), res);
-    //
-    if(res == 1){
-        res = strlen(data);
-    }
-#else
     int i = 0;
     int r;
     struct ast_frame *f;
@@ -564,12 +565,12 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
     for (;;) {
     /* if outa time, leave */
     if (ast_tvdiff_ms(ast_tvnow(), lastdigittime) > ((i > 0) ? sdto : fdto)) {
-        //ast_log(AST_LOG_DEBUG, "XoIP : DTMF Digit Timeout on %s\n", ast_channel_name(chan));
 	break;
     }
-    /* wait 1sec but a parameter can be used */
+    /* wait the given timeout*/
     if ((r = ast_waitfor(chan, timeout)) < 0) {
-        ast_log(AST_LOG_DEBUG, "XoIP : Waitfor returned %d\n", r);
+        ast_verb(5, "XoIP[%02d,%04X] : Waitfor returned [%d].\n",
+                xcomm->track, xcomm->callref, r);
 	break;
     }
 
@@ -614,49 +615,59 @@ int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double time
 
     data[i] = '\0'; /* Nul terminate the end of the digit string */
   
-#endif
     return res;
 }
 
 /*!
+ * \brief Not yet ready for production using.!!!!!
  *
+ * \param xcomm The xoip communication
+ * \param volume The volume to set into channel
  */
 int xoip_set_talk_volume(struct xoip_comm *xcomm, int volume)
 {
-	char gain_adjust;
-
-	/* attempt to make the adjustment in the channel driver;
-	   if successful, don't adjust in the frame reading routine
-	*/
-	gain_adjust = gain_map[volume + 5];
-
-	return ast_channel_setoption(xcomm->chan, AST_OPTION_RXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
+    char gain_adjust;
+    /* attempt to make the adjustment in the channel driver;
+    if successful, don't adjust in the frame reading routine
+    */
+    gain_adjust = gain_map[volume + 5];
+    return ast_channel_setoption(xcomm->chan, AST_OPTION_RXGAIN, 
+            &gain_adjust, sizeof(gain_adjust), 0);
 }
 
 /*!
+ * \brief Not yet ready for production using.!!!!!
  *
+ * \param xcomm The xoip communication
+ * \param volume The volume to set into channel
+ *
+ * \retval -1 on error
+ * \retval 0 on success
  */
 int xoip_set_listen_volume(struct xoip_comm *xcomm, int volume)
 {
-	char gain_adjust;
-
-	/* attempt to make the adjustment in the channel driver;
-	   if successful, don't adjust in the frame reading routine
-	*/
-	gain_adjust = gain_map[volume + 5];
-
-	return ast_channel_setoption(xcomm->chan, AST_OPTION_TXGAIN, &gain_adjust, sizeof(gain_adjust), 0);
+    char gain_adjust;
+    /* attempt to make the adjustment in the channel driver;
+    if successful, don't adjust in the frame reading routine
+    */
+    gain_adjust = gain_map[volume + 5];
+    return ast_channel_setoption(xcomm->chan, AST_OPTION_TXGAIN, 
+            &gain_adjust, sizeof(gain_adjust), 0);
 }
 
 /*!
+ * Allow to set a call in a wait state.
+ * This is something like park.
+ * Please see the dialplan context xoip-comm-waiting
  *
+ * \param xcomm The xoip communication
+ * \param mode The indication that hangup the PBX side(not used)
+ *
+ * \retval -1 on error
+ * \retval 0 on error
  */
 int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)
 {
-    const char *park_exten = ".X";
-    const char *park_context = "xoip-commut";
-    int timeout = 5 * 60000;
-    int extout = 0;
     int res = 0;
     struct ast_channel *chan = xcomm->chan;
     struct ast_channel *bc  = ast_bridged_channel(xcomm->chan);
@@ -665,43 +676,26 @@ int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)
                 xcomm->track, xcomm->callref);
     }
 
-#if 0
-    ast_channel_lock(xcomm->chan);
-    ast_set_flag(ast_channel_flags(xcomm->chan), AST_FLAG_BRIDGE_HANGUP_DONT);
-    ast_channel_unlock(xcomm->chan);
-    int res = ast_masq_park_call_exten(xcomm->chan, bc,
-            park_exten, park_context, timeout, &extout);
-    ast_verb(4, "XoIP[%02d,%04X] : Queuing(park) a call with result [%d] and extout [%d].\n",
-            xcomm->track, xcomm->callref, res, extout);
-    xcomm->extout = extout;
-#endif 
-    //ast_autoservice_chan_hangup_peer(xcomm->chan, bc);
-    
-     /*ast_verb(4, "XoIP[%02d,%04X] : Try and bridging caller [%s] and peer [%s].\n",
-                xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan), 
-                ast_channel_name(bc));*/
-
-
-    //ast_set_flag(ast_channel_flags(xcomm->chan), AST_FLAG_BRIDGE_HANGUP_DONT);
-    //ast_softhangup(xcomm->chan, AST_SOFTHANGUP_UNBRIDGE);
-    char *context = "xoip-comm-waiting";
-    char *exten = "8181";
+    char *context = XOIP_CONTEXT_WAIT;
+    const char *exten  = pbx_builtin_getvar_helper(xcomm->chan,
+            XOIP_COMMUT_EXTEN);
     int pi = 1;
-     if (ast_channel_pbx(chan)) {
-			ast_channel_lock(chan);
-			/* don't let the after-bridge code run the h-exten */
-			ast_set_flag(ast_channel_flags(chan), AST_FLAG_BRIDGE_HANGUP_DONT);
-			ast_channel_unlock(chan);
-		}
-		res = ast_async_goto(chan, context, exten, pi);
-		    
-
+    if (ast_channel_pbx(chan)) {
+        ast_channel_lock(chan);
+        /* don't let the after-bridge code run the h-exten */
+        ast_set_flag(ast_channel_flags(chan),
+                AST_FLAG_BRIDGE_HANGUP_DONT);
+        ast_channel_unlock(chan);
+    }
+    res = ast_async_goto(chan, context, exten, pi);
     return res;
 }
 
 
 
-/** helpers **/
+/*!
+ * \brief Helper for print the given frame informations
+ */
 void print_frame(struct ast_frame *frame)
 {
 	switch (frame->frametype) {
