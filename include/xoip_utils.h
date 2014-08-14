@@ -96,10 +96,6 @@ struct xoip_comm {
     AST_LIST_ENTRY(xoip_comm) list;
 };
 
-/*struct xoip_comm_data_callback {
-    struct xoip_comm *xcomm;
-    int (*func_data_callback) (int track, int callref, const char* data);
-};*/
 
 /*!
  * \brief Generate a callref. 
@@ -167,23 +163,82 @@ static const char gain_map[] = {
 	15,
 };
 
-
-
-
-
+/*!
+ * Generate tones.
+ *
+ * \param chan The channel to generate tones
+ * \param data The buffer of data to generate to the channel
+ * \param size The size of generated data
+ * \paral tone_type The type of generated tone. Please see enum of used tones
+ *
+ * \retval -1 on error
+ * \retval 0 on success
+ */
 int xoip_generate_tones(struct ast_channel *chan, const char *data, int size, int tone_types, int duration);
 
+/*!
+ * Generate frequency.
+ *
+ * \param xcomm The xoip communication
+ * \param freq The given frequency to generate
+ * \duration The duration msec of generated frequency
+ * \loudness The frequancy loudness
+ *
+ * \rertval -1 on error
+ * \retval 0 on success
+ */
 int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loudness);
 
+/*!
+ * \brief Read data from the given channel.
+ * Considered only DTMF
+ *
+ * \param xcomm The xoip communication
+ * \param data The buffer for received data from the channel
+ * \maxsize The maximal size of the data's buffer
+ * \timeout The timeout for ast_waitfor
+ *
+ * \retval -1 on error
+ * \retval 0 on success
+ */
 int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout);
 
+/*!
+ * \brief Not yet ready for production using.!!!!!
+ *
+ * \param xcomm The xoip communication
+ * \param volume The volume to set into channel
+ */
 int xoip_set_talk_volume(struct xoip_comm *xcomm, int volume);
 
+/*!
+ * \brief Not yet ready for production using.!!!!!
+ *
+ * \param xcomm The xoip communication
+ * \param volume The volume to set into channel
+ *
+ * \retval -1 on error
+ * \retval 0 on success
+ */
 int xoip_set_listen_volume(struct xoip_comm *xcomm, int volume);
 
+/*!
+ * Allow to set a call in a wait state.
+ * This is something like park.
+ * Please see the dialplan context xoip-comm-waiting
+ *
+ * \param xcomm The xoip communication
+ * \param mode The indication that hangup the PBX side(not used)
+ *
+ * \retval -1 on error
+ * \retval 0 on error
+ */
 int xoip_queuing_call(struct xoip_comm *xcomm, char *mode);
 
-/** helpers **/
+
+/*!
+ * \brief Helper for print the given frame informations
+ */
 void print_frame(struct ast_frame *frame);
 
 
