@@ -130,7 +130,6 @@ int do_process_message (const char *buf, int size,
   int track = atoi (messages[1]);
   long callref = 0;
   sscanf(messages[2], "%04X", &callref);
-  //long callref = htonl (messages[2]);
   /* so far sor good */
   switch (type)
     {
