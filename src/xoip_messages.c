@@ -22,6 +22,8 @@
 	<support_level>core</support_level>
  ***/
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "asterisk.h"
 #include "asterisk/logger.h"
 //#include "asterisk/astmm.h"
@@ -96,7 +98,7 @@ int do_process_message (const char *buf, int size,
   char messages[10][255] = { '\0' };
   int count = 0;
 
-  //ast_log(AST_LOG_VERBOSE, " %s \n", buffer);
+  ast_verb(5, "Get packet from f1 endpoint :  [%s\n]", buffer);
 
   char *token = NULL;
 
@@ -111,15 +113,24 @@ int do_process_message (const char *buf, int size,
 
   char type = messages[0][2];
   /* this is special case for ithe polling and mode request messages */
-  if(type == 'N'){
+  if(messages[0][0] == 'R' && type == 'S'){
+      handlers->request_reboot();
+      goto goout;
+  }else if(type == 'N'){
       /* skip this one */
-      return 0;
+      handlers->request_mode_normal();
+      goto goout;
+  }else if(messages[0][0]== 'V' && type == 'R'){
+      goto goout;
   }else if(type == 'P'){
+      ast_verb(5, "Get polling [%s].\n", messages[3]);
       handlers->polling(messages[3]);
-      return 0;
+      goto goout;
   }
   int track = atoi (messages[1]);
-  int callref = atoi (messages[2]);
+  long callref = 0;
+  sscanf(messages[2], "%04X", &callref);
+  //long callref = htonl (messages[2]);
   /* so far sor good */
   switch (type)
     {
@@ -187,12 +198,16 @@ int do_process_message (const char *buf, int size,
     case 'W':
       handlers->queuing_call(track, callref, messages[3]);
       break;
+    case 'U':
+      break;
     default:
       ast_log (AST_LOG_VERBOSE, " Processing but type not found : [%c]..\n",
-	       type);
+	       buf);
       break;
     }
+  goto goout;
 
+goout:
   res = size;
   free (buffer);
   return res;
@@ -202,12 +217,12 @@ int do_process_message (const char *buf, int size,
 /*!
  *
  */
-int xoip_build_XC_msg (int voie, int callref, const char *callee,
-		   const char *caller, const char *real_caller, char *dest,
+int xoip_build_XC_msg (int voie, int callref, const char *did,
+		   const char *caller, const char *transfered, char *dest,
 		   int size)
 {
   snprintf (dest, size - 1, "X C,%02d,%04X,%s,%s,T%s\r",
-	    voie, callref, callee, caller, real_caller);
+	    voie, callref, did, caller, transfered);
   if(strlen(dest) == 0){
       return -1;
   }
@@ -219,7 +234,7 @@ int xoip_build_XC_msg (int voie, int callref, const char *callee,
 /*!
  *
  */
-int xoip_build_Xc_msg (int voie, int callref, const char *callee,
+/*int xoip_build_Xc_msg (int voie, int callref, const char *callee,
 		   const char *caller, const char *real_caller, char *dest,
 		   int size)
 {
@@ -230,7 +245,7 @@ int xoip_build_Xc_msg (int voie, int callref, const char *callee,
   }
   return 0;
 
-}
+}*/
 
 /*!
  *
@@ -262,7 +277,7 @@ int xoip_build_XL_msg (int voie, int callref, int res, char *dest, int size)
          snprintf (dest, size - 1, "X L,%02d,%04X,1,%01d\r",
 	    voie, callref, res);
     }else{
-         snprintf (dest, size - 1, "X L,%02d,%04X\r",
+         snprintf (dest, size - 1, "X L,%02d,%04d\r",
 	    voie, callref);
     }
     
@@ -282,7 +297,7 @@ int xoip_build_Xm_msg(int voie, int callref, int state, int res, char *dest, int
          snprintf (dest, size - 1, "X m,%02d,%04X,1,%01d\r",
 	    voie, callref, res);
     }else{
-         snprintf (dest, size - 1, "X m,%02d,%04X\r",
+         snprintf (dest, size - 1, "X m,%02d,%04d\r",
 	    voie, callref);
     }
     
@@ -299,7 +314,7 @@ int xoip_build_Xm_msg(int voie, int callref, int state, int res, char *dest, int
 int xoip_build_XE_msg(int status, char *dest, int size)
 {
     snprintf (dest, size - 1, "X E,%01d,%s\r",
-	    status, "XoIPEvo Alarms-V0.2.0.80,Dem V0000,Mod V0000");
+	    status, "XoIP Alarms-V0.2.0.80,Dem V0000,Mod V0000");
     if(strlen(dest) == 0){
       return -1;
     }
@@ -323,7 +338,7 @@ int xoip_build_Xr_msg (int voie, int callref, char *dest, int size)
 int xoip_build_Xh_msg (int voie, int callref, int state, const char *callee,
 		   char *dest, int size)
 {
-  snprintf (dest, size, "X h,%02d,%04d,%01d,%s\r",
+  snprintf (dest, size, "X h,%02d,%04X,%01d,%s\r",
 	    voie, callref, state, callee);
   return 0;
 }
@@ -381,7 +396,7 @@ int xoip_build_Xf_msg (int voie, int callref, int state, int res, char *dest, in
  */
 int xoip_build_XA_msg (int voie, int callref, const char *data, char *dest, int size)
 {
-    snprintf (dest, size, "X A,%02d,%04d,%s\r",
+    snprintf (dest, size, "X A,%02d,%04X,%s\r",
 	    voie, callref, data); 
     return 0;
 }

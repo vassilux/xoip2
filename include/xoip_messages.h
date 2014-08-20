@@ -60,6 +60,10 @@ struct f1_messages_handlers
      */
     int (*record_request)(int track, int callref, int record_track);
 
+    int (*request_mode_normal)();
+
+    int (*request_reboot)();
+
     int (*polling)(char *f1_version);
     /*!
      * \brief Process (F V) message from f1 endpoint.
@@ -83,13 +87,13 @@ struct f1_messages_handlers
 int xoip_build_XA_msg (int voie, int callref, const char *data, char *dest, int size);
 
 
-int xoip_build_XC_msg (int voie, int callref, const char *callee,
-		       const char *caller, const char *real_caller,
+int xoip_build_XC_msg (int voie, int callref, const char *did,
+                        const char *caller, const char *transfered,
 		       char *dest, int size);
 
-int xoip_build_Xc_msg (int voie, int callref, const char *callee,
+/*int xoip_build_Xc_msg (int voie, int callref, const char *callee,
 		       const char *caller, const char *real_caller,
-		       char *dest, int size);
+		       char *dest, int size);*/
 
 int xoip_build_Xg_msg (int voie, int callref, int state, int res, char *dest, int size);
 

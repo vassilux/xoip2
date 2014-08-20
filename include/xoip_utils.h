@@ -84,9 +84,9 @@ static char *XOIP_CONTEXT_HANGUP = "xoip-comm-hangup";
  * All comunications stored into the static list xoip_comms
  */
 struct xoip_comm {
-    int track;
-    int callref;
-    int extout;
+    int  track;
+    long callref;
+    int  extout;
     unsigned int stop_tones:1;
     xoip_protocol_t proto;
     int (*func_data_callback) (int track, int callref, const char* data);

@@ -345,7 +345,7 @@ static void do_translate_send_fh(struct xoip_comm *xcomm, enum ast_dial_result s
             break;
 
         case AST_DIAL_RESULT_TRYING:
-            send_f1_fh_packet(xcomm, 9);
+            send_f1_fh_packet(xcomm, 8);
             break;
 
 
@@ -354,7 +354,7 @@ static void do_translate_send_fh(struct xoip_comm *xcomm, enum ast_dial_result s
             break;
 
         case AST_DIAL_RESULT_PROCEEDING:	
-            send_f1_fh_packet(xcomm, 9);
+            send_f1_fh_packet(xcomm, 8);
             break;
 
 
@@ -659,6 +659,23 @@ int record_request_fn(int track, int callref, int record_track)
     return -1;
 }
 
+int request_mode_normal_fn()
+{
+    char *buf="X n\r";
+
+    int res = send_f1_packet(buf, strlen(buf));
+    return res;
+}
+
+int request_reboot_fn()
+{
+    char *buf="X U\r";
+
+    int res = send_f1_packet(buf, strlen(buf));
+    return res;
+
+}
+
 /*!
  * \brief Process the polling request
  * \param request, the request string 
@@ -670,6 +687,8 @@ int polling_fn(char *request){
     int status = 0;
 
     res = xoip_build_XE_msg(status, buf, sizeof(buf));
+
+    ast_verb(5, buf);
 
     if(!res){
         res = send_f1_packet(buf, strlen(buf));
@@ -859,6 +878,8 @@ struct f1_messages_handlers g_f1_handlers= {
             .switch_protocol = switch_protocol_fn,
             .ack_alarm = ack_alarm_fn,
             .record_request = record_request_fn,
+            .request_mode_normal = request_mode_normal_fn,
+            .request_reboot = request_reboot_fn,
             .polling = polling_fn,
             .send_data = send_data_fn,
             .volume_adjust = volume_adjust_fn,
@@ -901,7 +922,7 @@ static void f1comm_recv_handler(int sig)
     memset(buf, 0, sizeof(buf)); 
     int res = recv_f1_packet(buf, BUFLEN);
     if(res > 0 ){
-        ast_log(LOG_NOTICE, "Get f1 packet %s of %d\n.", buf, strlen(buf));
+        //ast_verb(5, "F1 enpoint packet received [%X] of length [%d].", buf, strlen(buf));
         res = process_message(buf, strlen(buf), &g_f1_handlers);
         //
     }
@@ -1195,7 +1216,7 @@ static struct ast_frame *hook_frame_event_cb(struct ast_channel *chan, struct as
         char buf[2] = {'\0'};
         snprintf (buf, sizeof(buf), "%c", frame2->subclass.integer);
         //print_frame(frame);
-         xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
+        xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
     }
 
     return frame2;
@@ -1220,16 +1241,10 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
     /* the channel must be answered */
     /* F1 endpoint notified by X g messages */
 
-    if (ast_set_write_format_by_id(xcomm->chan,AST_FORMAT_ALAW)) {
-        ast_log(LOG_WARNING, 
-                "XoIP[%02d,%04X] : Unable to set write format to a-law on %s\n",
-                xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan));
-        return -1;
-    }
-
-    res = ast_safe_sleep(chan, 500);
+  
+    //res = ast_safe_sleep(chan, 500);
     /* keep for test must be changed */       
-    const char *invitation_data = "A**A8181";
+    /*const char *invitation_data = "A**A8181";
     int tone_types = 0;
     tone_types |= TONES_DTMF;
     res = xoip_generate_tones(xcomm->chan, 
@@ -1239,7 +1254,7 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
         ast_log(AST_LOG_ERROR, "XoIP[%02d,%04X] : Failed to send dtmf.\n",
                 xcomm->track, xcomm-callref);
         return -1;
-    }
+    }*/
 
     int waiting = 1000;
     while (ast_waitfor(chan, waiting) > -1){
@@ -1262,13 +1277,13 @@ static int process_incomming_alarm(int track, int callref, struct ast_channel *c
             }
         }
         /* */
-        /*memset(buf, 0, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
         res = xoip_read_data(xcomm, buf, sizeof(buf) - 1, 2000);
         if(res == -1){
             ast_log(AST_LOG_NOTICE, 
                     "XoIP[%02d, %04d] : Failed read data on channel [%s].\n", 
                     xcomm->track, xcomm->callref, ast_channel_name(chan));
-        }*/
+        }
         
         /*if(strlen(buf) > 0){
             xcomm->func_data_callback(xcomm->track, xcomm->callref, buf);
@@ -1308,10 +1323,22 @@ static int xoip_alarms(struct ast_channel *chan, const char *data)
     int callref = get_current_callref();
     xoip_channel_add(track, callref, chan);
 
+    
+
     struct xoip_comm *xcomm = xoip_channel_get(track, callref);
-    res = xoip_build_XC_msg(track, callref,ast_channel_exten(chan),
+
+    if (ast_set_write_format_by_id(xcomm->chan,AST_FORMAT_ALAW)) {
+        ast_log(LOG_WARNING, 
+                "XoIP[%02d,%04X] : Unable to set write format to a-law on %s\n",
+                xcomm->track, xcomm->callref, ast_channel_name(xcomm->chan));
+        return -1;
+    }
+
+
+    res = xoip_build_XC_msg(track, callref,
+            ast_channel_exten(chan),
             ast_channel_cdr(chan)->src,
-            ast_channel_cdr(chan)->clid,
+            ast_channel_cdr(chan)->src,
             buf,
             sizeof(buf));
     if(res  < 0){

@@ -4,27 +4,100 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+AST_LIST_HEAD_STATIC	app_xoip.c	/^static AST_LIST_HEAD_STATIC(xoip_comms, xoip_comm);$/;"	p	file:
 AST_MODULE	app_xoip.c	33;"	d	file:
-XOIP_COMMUT_CONTEXT	app_xoip.c	74;"	d	file:
-XOIP_COMMUT_EXTEN	app_xoip.c	75;"	d	file:
-XOIP_CONFIG	app_xoip.c	64;"	d	file:
-XOIP_PROTOCOL_KEY	app_xoip.c	71;"	d	file:
-XOIP_STATE_KEY	app_xoip.c	66;"	d	file:
-XOIP_STATE_VALUE_ANSWER	app_xoip.c	67;"	d	file:
-XOIP_STATE_VALUE_COMMUT	app_xoip.c	69;"	d	file:
-XOIP_STATE_VALUE_HANGUP	app_xoip.c	68;"	d	file:
-app_xoip	app_xoip.c	/^static char *app_xoip = "XoIp";$/;"	v	file:
-ast_channel_name	app_xoip.c	/^                                ast_channel_name(caller),     ast_channel_name(outbound));$/;"	p	file:
+__anon1::id	app_xoip.c	/^	pthread_t id;$/;"	m	struct:__anon1	file:	access:public
+__anon1::stop	app_xoip.c	/^	unsigned int stop:1;$/;"	m	struct:__anon1	file:	access:public
+__anon2::buf	app_xoip.c	/^    char buf[BUFLEN];$/;"	m	struct:__anon2	file:	access:public
+__anon2::sfd	app_xoip.c	/^    int sfd;$/;"	m	struct:__anon2	file:	access:public
+__anon2::si_me	app_xoip.c	/^    struct sockaddr_in si_me;$/;"	m	struct:__anon2	typeref:struct:__anon2::sockaddr_in	file:	access:public
+__anon2::si_other	app_xoip.c	/^    struct sockaddr_in si_other;$/;"	m	struct:__anon2	typeref:struct:__anon2::sockaddr_in	file:	access:public
+ack_alarm_fn	app_xoip.c	/^int ack_alarm_fn(int track, int callref){$/;"	f	signature:(int track, int callref)
+answer_fn	app_xoip.c	/^int answer_fn(int track, int callref, char proto, int level){$/;"	f	signature:(int track, int callref, char proto, int level)
+app_xoip_alarms	app_xoip.c	/^static char *app_xoip_alarms = "XoIPAlarms";$/;"	v	file:
+app_xoip_hangup	app_xoip.c	/^static char *app_xoip_hangup = "XoIPHangup";$/;"	v	file:
+app_xoip_park	app_xoip.c	/^static char *app_xoip_park = "XoIPPark";$/;"	v	file:
+buf	app_xoip.c	/^    char buf[BUFLEN];$/;"	m	struct:__anon2	file:	access:public
+cleanup_module	app_xoip.c	/^static void cleanup_module(void)$/;"	f	file:	signature:(void)
+commut_fn	app_xoip.c	/^int commut_fn(int track, int callref, char* callee, char* trans, char* volume){$/;"	f	signature:(int track, int callref, char* callee, char* trans, char* volume)
 config_f1_adr	app_xoip.c	/^static char config_f1_adr[128] = {'\\0'};$/;"	v	file:
 config_f1_port	app_xoip.c	/^static int config_f1_port = 8118;$/;"	v	file:
-do_process_message	xoip_messages.c	/^do_process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+data_callback_fn	app_xoip.c	/^int data_callback_fn(int track, int callref, const char* data)$/;"	f	signature:(int track, int callref, const char* data)
+dispatch_thread	app_xoip.c	/^} dispatch_thread = {$/;"	v	typeref:struct:__anon1	file:
+dispatch_thread_handler	app_xoip.c	/^static void *dispatch_thread_handler(void *data)$/;"	f	file:	signature:(void *data)
+do_process_message	xoip_messages.c	/^int do_process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
 do_process_message	xoip_messages.c	/^int do_process_message (const char *buf, int size,$/;"	p	file:	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+do_process_message_ff	xoip_messages.c	/^static void do_process_message_ff(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)$/;"	f	file:	signature:(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)
+do_process_message_fl	xoip_messages.c	/^static void do_process_message_fl(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)$/;"	f	file:	signature:(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)
+do_translate_send_fh	app_xoip.c	/^static void do_translate_send_fh(struct xoip_comm *xcomm, enum ast_dial_result state){$/;"	f	file:	signature:(struct xoip_comm *xcomm, enum ast_dial_result state)
+do_xoip_commut	app_xoip.c	/^static  int do_xoip_commut(struct xoip_comm* xcomm){$/;"	f	file:	signature:(struct xoip_comm* xcomm)
+enable_async	app_xoip.c	/^static int enable_async(int sfd)$/;"	f	file:	signature:(int sfd)
+f1comm_recv_handler	app_xoip.c	/^static void f1comm_recv_handler(int sig)$/;"	f	file:	signature:(int sig)
 g_current_callref	xoip_utils.c	/^static int g_current_callref = 0x0;$/;"	v	file:
 g_current_track	xoip_utils.c	/^static int g_current_track = 0x0;$/;"	v	file:
-get_current_callref	xoip_utils.c	/^int get_current_callref(void)$/;"	f	signature:(void)
-get_current_track	xoip_utils.c	/^int get_current_track(void)$/;"	f	signature:(void)
-process_message	xoip_messages.c	/^process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
-xoip_build_XC_msg	xoip_messages.c	/^xoip_build_XC_msg (int voie, int callref, const char *callee,$/;"	f	signature:(int voie, int callref, const char *callee, const char *caller, const char *real_caller, char *dest, int size)
-xoip_build_Xc_msg	xoip_messages.c	/^xoip_build_Xc_msg (int voie, int callref, const char *callee,$/;"	f	signature:(int voie, int callref, const char *callee, const char *caller, const char *real_caller, char *dest, int size)
-xoip_build_Xh_msg	xoip_messages.c	/^xoip_build_Xh_msg (int voie, int callref, int state, const char *callee,$/;"	f	signature:(int voie, int callref, int state, const char *callee, char *dest, int size)
-xoip_build_Xr_msg	xoip_messages.c	/^xoip_build_Xr_msg (int voie, int callref, char *dest, int size)$/;"	f	signature:(int voie, int callref, char *dest, int size)
+g_f1_handlers	app_xoip.c	/^struct f1_messages_handlers g_f1_handlers= {$/;"	v	typeref:struct:f1_messages_handlers
+get_current_callref	xoip_utils.c	/^int get_current_callref (void)$/;"	f	signature:(void)
+get_current_track	xoip_utils.c	/^int get_current_track (void)$/;"	f	signature:(void)
+get_protocol	xoip_utils.c	/^xoip_protocol_t get_protocol (int proto)$/;"	f	signature:(int proto)
+hangup_fn	app_xoip.c	/^int hangup_fn(int track, int callref){$/;"	f	signature:(int track, int callref)
+hook_destroy_cb	app_xoip.c	/^static void hook_destroy_cb(void *framedata)$/;"	f	file:	signature:(void *framedata)
+hook_frame_event_cb	app_xoip.c	/^static struct ast_frame *hook_frame_event_cb(struct ast_channel *chan, struct ast_frame *frame, enum ast_framehook_event event, void *data)$/;"	f	file:	signature:(struct ast_channel *chan, struct ast_frame *frame, enum ast_framehook_event event, void *data)
+id	app_xoip.c	/^	pthread_t id;$/;"	m	struct:__anon1	file:	access:public
+init_f1_communication	app_xoip.c	/^int init_f1_communication()$/;"	f
+load_config	app_xoip.c	/^static int load_config(void){$/;"	f	file:	signature:(void)
+load_module	app_xoip.c	/^static int load_module(void)$/;"	f	file:	signature:(void)
+make_tone_burst	xoip_utils.c	/^make_tone_burst (unsigned char *data, float freq, float loudness, int len,$/;"	f	file:	signature:(unsigned char *data, float freq, float loudness, int len, int *x)
+polling_fn	app_xoip.c	/^int polling_fn(char *request){$/;"	f	signature:(char *request)
+print_frame	xoip_utils.c	/^void print_frame(struct ast_frame *frame)$/;"	f	signature:(struct ast_frame *frame)
+process_incomming_alarm	app_xoip.c	/^static int process_incomming_alarm(int track, int callref, struct ast_channel *chan, const char *data){$/;"	f	file:	signature:(int track, int callref, struct ast_channel *chan, const char *data)
+process_message	xoip_messages.c	/^int process_message (const char *buf, int size,$/;"	f	signature:(const char *buf, int size, struct f1_messages_handlers *handlers)
+queuing_call_fn	app_xoip.c	/^int queuing_call_fn(int track, int callref, char *mode)$/;"	f	signature:(int track, int callref, char *mode)
+record_request_fn	app_xoip.c	/^int record_request_fn(int track, int callref, int record_track)$/;"	f	signature:(int track, int callref, int record_track)
+recv_f1_packet	app_xoip.c	/^static int recv_f1_packet(char* buf, int maxsize)$/;"	f	file:	signature:(char* buf, int maxsize)
+request_mode_normal_fn	app_xoip.c	/^int request_mode_normal_fn()$/;"	f
+request_reboot_fn	app_xoip.c	/^int request_reboot_fn()$/;"	f
+send_data_fn	app_xoip.c	/^int send_data_fn(int track, int callref, int mode_transfer, char *data, char *mode_operator, char *break_record)$/;"	f	signature:(int track, int callref, int mode_transfer, char *data, char *mode_operator, char *break_record)
+send_f1_fh_packet	app_xoip.c	/^static void send_f1_fh_packet(struct xoip_comm *xcomm, int state)$/;"	f	file:	signature:(struct xoip_comm *xcomm, int state)
+send_f1_packet	app_xoip.c	/^static int send_f1_packet(char *data, int size)$/;"	f	file:	signature:(char *data, int size)
+send_freq_fn	app_xoip.c	/^int send_freq_fn(int track, int callref, int freq, int duration, int loudness, char* mode, char *break_record)$/;"	f	signature:(int track, int callref, int freq, int duration, int loudness, char* mode, char *break_record)
+send_tone_burst	xoip_utils.c	/^static int send_tone_burst(struct ast_channel *chan, float freq, int duration, int loudness)$/;"	f	file:	signature:(struct ast_channel *chan, float freq, int duration, int loudness)
+sfd	app_xoip.c	/^    int sfd;$/;"	m	struct:__anon2	file:	access:public
+si_me	app_xoip.c	/^    struct sockaddr_in si_me;$/;"	m	struct:__anon2	typeref:struct:__anon2::sockaddr_in	file:	access:public
+si_other	app_xoip.c	/^    struct sockaddr_in si_other;$/;"	m	struct:__anon2	typeref:struct:__anon2::sockaddr_in	file:	access:public
+stop	app_xoip.c	/^	unsigned int stop:1;$/;"	m	struct:__anon1	file:	access:public
+switch_protocol_fn	app_xoip.c	/^int switch_protocol_fn(int track, int callref, char proto, int loudness)$/;"	f	signature:(int track, int callref, char proto, int loudness)
+udp_f1_comm	app_xoip.c	/^} udp_f1_comm = {$/;"	v	typeref:struct:__anon2	file:
+unload_module	app_xoip.c	/^static int unload_module(void)$/;"	f	file:	signature:(void)
+valid_protocol	xoip_utils.c	/^bool valid_protocol (int proto)$/;"	f	signature:(int proto)
+volume_adjust_fn	app_xoip.c	/^int volume_adjust_fn(int track, int callref, int volume)$/;"	f	signature:(int track, int callref, int volume)
+xoip_alarms	app_xoip.c	/^static int xoip_alarms(struct ast_channel *chan, const char *data)$/;"	f	file:	signature:(struct ast_channel *chan, const char *data)
+xoip_build_XA_msg	xoip_messages.c	/^int xoip_build_XA_msg (int voie, int callref, const char *data, char *dest, int size)$/;"	f	signature:(int voie, int callref, const char *data, char *dest, int size)
+xoip_build_XC_msg	xoip_messages.c	/^int xoip_build_XC_msg (int voie, int callref, const char *did,$/;"	f	signature:(int voie, int callref, const char *did, const char *caller, const char *transfered, char *dest, int size)
+xoip_build_XE_msg	xoip_messages.c	/^int xoip_build_XE_msg(int status, char *dest, int size)$/;"	f	signature:(int status, char *dest, int size)
+xoip_build_XL_msg	xoip_messages.c	/^int xoip_build_XL_msg (int voie, int callref, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int res, char *dest, int size)
+xoip_build_Xf_msg	xoip_messages.c	/^int xoip_build_Xf_msg (int voie, int callref, int state, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int state, int res, char *dest, int size)
+xoip_build_Xg_msg	xoip_messages.c	/^int xoip_build_Xg_msg (int voie, int callref, int state, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int state, int res, char *dest, int size)
+xoip_build_Xh_msg	xoip_messages.c	/^int xoip_build_Xh_msg (int voie, int callref, int state, const char *callee,$/;"	f	signature:(int voie, int callref, int state, const char *callee, char *dest, int size)
+xoip_build_Xi_msg	xoip_messages.c	/^int xoip_build_Xi_msg(int voie, int callref, int state, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int state, int res, char *dest, int size)
+xoip_build_Xk_msg	xoip_messages.c	/^int xoip_build_Xk_msg(int voie, int callref, int state, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int state, int res, char *dest, int size)
+xoip_build_Xm_msg	xoip_messages.c	/^int xoip_build_Xm_msg(int voie, int callref, int state, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int state, int res, char *dest, int size)
+xoip_build_Xr_msg	xoip_messages.c	/^int xoip_build_Xr_msg (int voie, int callref, char *dest, int size)$/;"	f	signature:(int voie, int callref, char *dest, int size)
+xoip_build_Xw_msg	xoip_messages.c	/^int xoip_build_Xw_msg(int voie, int callref, int res, char *dest, int size)$/;"	f	signature:(int voie, int callref, int res, char *dest, int size)
+xoip_channel_add	app_xoip.c	/^static int xoip_channel_add(int track, int callref, struct ast_channel *chan)$/;"	f	file:	signature:(int track, int callref, struct ast_channel *chan)
+xoip_channel_del	app_xoip.c	/^static int xoip_channel_del(int track, int callref)$/;"	f	file:	signature:(int track, int callref)
+xoip_channel_find	app_xoip.c	/^static struct xoip_comm* xoip_channel_find(struct ast_channel *chan)$/;"	f	file:	signature:(struct ast_channel *chan)
+xoip_channel_get	app_xoip.c	/^static struct xoip_comm* xoip_channel_get(int track, int callref)$/;"	f	file:	signature:(int track, int callref)
+xoip_comm_new	app_xoip.c	/^static struct xoip_comm* xoip_comm_new(int track, int callref, struct ast_channel *chan)$/;"	f	file:	signature:(int track, int callref, struct ast_channel *chan)
+xoip_dial_state_callback	app_xoip.c	/^static void xoip_dial_state_callback(struct ast_dial *dial)$/;"	f	file:	signature:(struct ast_dial *dial)
+xoip_generate_dtmf_tones	xoip_utils.c	/^static int xoip_generate_dtmf_tones(struct ast_channel *chan, const char *data, int size, int duration, int between)$/;"	f	file:	signature:(struct ast_channel *chan, const char *data, int size, int duration, int between)
+xoip_generate_freq	xoip_utils.c	/^int xoip_generate_freq(struct xoip_comm *xcomm, int freq, int duration, int loudness)$/;"	f	signature:(struct xoip_comm *xcomm, int freq, int duration, int loudness)
+xoip_generate_tones	xoip_utils.c	/^int xoip_generate_tones (struct ast_channel *chan, const char *data, int size,$/;"	f	signature:(struct ast_channel *chan, const char *data, int size, int tone_types, int duration)
+xoip_hangup	app_xoip.c	/^static int xoip_hangup(struct ast_channel *chan, const char *data)$/;"	f	file:	signature:(struct ast_channel *chan, const char *data)
+xoip_park	app_xoip.c	/^static int xoip_park(struct ast_channel *chan, const char *data)$/;"	f	file:	signature:(struct ast_channel *chan, const char *data)
+xoip_queuing_call	xoip_utils.c	/^int xoip_queuing_call(struct xoip_comm *xcomm, char *mode)$/;"	f	signature:(struct xoip_comm *xcomm, char *mode)
+xoip_read_data	xoip_utils.c	/^int xoip_read_data(struct xoip_comm *xcomm, char *data, int maxsize, double timeout)$/;"	f	signature:(struct xoip_comm *xcomm, char *data, int maxsize, double timeout)
+xoip_senddigit	xoip_utils.c	/^static int xoip_senddigit(struct ast_channel *chan, char digit, unsigned int duration)$/;"	f	file:	signature:(struct ast_channel *chan, char digit, unsigned int duration)
+xoip_senddigit_begin	xoip_utils.c	/^static int xoip_senddigit_begin(struct ast_channel *chan, char digit)$/;"	f	file:	signature:(struct ast_channel *chan, char digit)
+xoip_senddigit_end	xoip_utils.c	/^static int xoip_senddigit_end(struct ast_channel *chan, char digit, unsigned int duration)$/;"	f	file:	signature:(struct ast_channel *chan, char digit, unsigned int duration)
+xoip_set_listen_volume	xoip_utils.c	/^int xoip_set_listen_volume(struct xoip_comm *xcomm, int volume)$/;"	f	signature:(struct xoip_comm *xcomm, int volume)
+xoip_set_talk_volume	xoip_utils.c	/^int xoip_set_talk_volume(struct xoip_comm *xcomm, int volume)$/;"	f	signature:(struct xoip_comm *xcomm, int volume)
