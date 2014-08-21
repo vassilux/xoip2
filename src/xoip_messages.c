@@ -230,21 +230,6 @@ int xoip_build_XC_msg (int voie, int callref, const char *did,
 }
 
 
-/*!
- *
- */
-/*int xoip_build_Xc_msg (int voie, int callref, const char *callee,
-		   const char *caller, const char *real_caller, char *dest,
-		   int size)
-{
-  snprintf (dest, size - 1, "X c,%02d,%04X,%s,%s,T%s\r",
-	    voie, callref, callee, caller, real_caller);
-  if(strlen(dest) == 0){
-      return -1;
-  }
-  return 0;
-
-}*/
 
 /*!
  *

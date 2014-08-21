@@ -91,10 +91,6 @@ int xoip_build_XC_msg (int voie, int callref, const char *did,
                         const char *caller, const char *transfered,
 		       char *dest, int size);
 
-/*int xoip_build_Xc_msg (int voie, int callref, const char *callee,
-		       const char *caller, const char *real_caller,
-		       char *dest, int size);*/
-
 int xoip_build_Xg_msg (int voie, int callref, int state, int res, char *dest, int size);
 
 
