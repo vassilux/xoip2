@@ -40,6 +40,8 @@ struct f1_messages_handlers
      */
     int (*commut) (int track, int callref, char *callee, char *trans,
 		 char *volum);
+
+    int (*emmission_configuration)(int track, int callref, char *type, int dtmf_duration, int silence_duration, int loudness);
     /*!
      * \brief Process (F I) message from f1 endpoint.
      */

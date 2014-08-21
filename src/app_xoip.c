@@ -209,6 +209,12 @@ static struct xoip_comm* xoip_comm_new(int track, int callref, struct ast_channe
     int features = 0;
     features |= DSP_FEATURE_DIGIT_DETECT;
     ast_dsp_set_features(xcomm->dsp, features | DSP_DIGITMODE_RELAXDTMF);
+    /* emmissions config init */
+    strcpy(xcomm->emmissions_conf.type, "");
+    xcomm->emmissions_conf.dtmf_duration = 0;
+    xcomm->emmissions_conf.silence_duration = 0;
+    xcomm->emmissions_conf.loudness = 0;
+
 
     return xcomm;
 
@@ -867,6 +873,26 @@ int queuing_call_fn(int track, int callref, char *mode)
     return 0;
 }
 
+int emmission_configuration_fn(int track, int callref, char *type, int dtmf_duration, int silence_duration, int loudness){
+    struct xoip_comm *xcomm = xoip_channel_get(track, callref);
+
+    if(xcomm == NULL){
+        ast_log(LOG_WARNING, "XoIP : Failed find a valid communication for the track [%d] and the callref [%d].\n", track, callref);
+        return -1;
+
+    }
+    if(type == NULL || strlen(type) == 0){
+         ast_log(LOG_WARNING, "XoIP : Type for the emmissions configuration is null or empty for the track [%d] and the callref [%d].\n", track, callref);
+        return -1;
+    }
+    strcpy(xcomm->emmissions_conf.type, type);
+    xcomm->emmissions_conf.dtmf_duration = dtmf_duration;
+    xcomm->emmissions_conf.silence_duration = silence_duration;
+    xcomm->emmissions_conf.loudness = loudness;
+    return -1;
+}
+
+
 /*!
  * \brief Network handlers 
  * Used for processing f1 endpoint messages
@@ -874,6 +900,7 @@ int queuing_call_fn(int track, int callref, char *mode)
  */
 struct f1_messages_handlers g_f1_handlers= {
             .answer = answer_fn,
+            .emmission_configuration = emmission_configuration_fn,
             .commut = commut_fn,
             .switch_protocol = switch_protocol_fn,
             .ack_alarm = ack_alarm_fn,

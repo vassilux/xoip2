@@ -76,6 +76,12 @@ static char *XOIP_CONTEXT_COMMUT ="xoip-commut";
 static char *XOIP_CONTEXT_WAIT = "xoip-comm-waiting";
 static char *XOIP_CONTEXT_HANGUP = "xoip-comm-hangup";
 
+struct xoip_emmissions_conf {
+    char type[5];
+    int dtmf_duration;
+    int silence_duration;
+    int loudness;
+};
 
 /*!
  * \brief the xoip communication
@@ -93,6 +99,7 @@ struct xoip_comm {
     struct ast_channel *chan;
     struct ast_dsp *dsp;
     struct ast_audiohook audiohook;
+    struct xoip_emmissions_conf emmissions_conf;
     AST_LIST_ENTRY(xoip_comm) list;
 };
 

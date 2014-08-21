@@ -33,8 +33,45 @@
 int do_process_message (const char *buf, int size,
 			struct f1_messages_handlers *handlers);
 
+
 /*!
- * \brief Send the frequencies to the channel identified by the given track and callref
+ * \brief Intiaialize the emmessions configuration for the given communication.
+ *
+ * \param track The track number.
+ * \param callref The call reference.
+ * \param messages The string array of parameters.
+ * \param handlers The pointer to the wrapper of the app_xoip functions.
+ */
+static void do_process_message_fc(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)
+{
+    char *emmission_type = messages[3];
+    int dtmf_duration = 0;
+    int silence_duration = 0;
+    int loudness = 0;
+
+    if(emmission_type != NULL &&(strcmp(emmission_type, "DTMF") == 0)){
+        if(messages[4] != NULL){
+            /* 
+             * pay an attention cause the F1 send packege without , between DTMF
+             * and duration
+             */
+            dtmf_duration = atoi(messages[4] + 4); // move 4 to skip DTMF string
+        }
+
+        if(messages[5] != NULL){
+            silence_duration = atoi(messages[5]);
+        }
+
+        if(messages[6] != NULL){
+            loudness = atoi(messages[6]);
+        }
+    }
+
+    
+}
+
+/*!
+ * \brief Send the frequencies to th] channel identified by the given track and callref
  */
 static void do_process_message_ff(int track, int callref, char messages[10][255], struct f1_messages_handlers *handlers)
 {
@@ -93,7 +130,6 @@ int do_process_message (const char *buf, int size,
   int res = 0;
   char *buffer = strdup (buf);
   const char *sep = ",";
-  int i = 0;
 
   char messages[10][255] = { '\0' };
   int count = 0;
@@ -133,6 +169,9 @@ int do_process_message (const char *buf, int size,
   /* so far sor good */
   switch (type)
     {
+    case 'C':
+        do_process_message_fc(track, callref, messages, handlers);
+        break;
     case 'F':
         do_process_message_ff(track, callref, messages, handlers);
         break;
