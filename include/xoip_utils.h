@@ -76,11 +76,14 @@ static char *XOIP_CONTEXT_COMMUT ="xoip-commut";
 static char *XOIP_CONTEXT_WAIT = "xoip-comm-waiting";
 static char *XOIP_CONTEXT_HANGUP = "xoip-comm-hangup";
 
+/*!
+ * \brief The Configuraiton of emmissions for a XoIP communication.
+ */
 struct xoip_emmissions_conf {
-    char type[5];
-    int dtmf_duration;
-    int silence_duration;
-    int loudness;
+    char type[5]; /* the type of communication DTMF or other(work in progress) */
+    int dtmf_duration; /* the dtmf duration */
+    int silence_duration; /* the silence duration */
+    int loudness; /* loudness from 140 to 0 */
 };
 
 /*!
@@ -90,9 +93,8 @@ struct xoip_emmissions_conf {
  * All comunications stored into the static list xoip_comms
  */
 struct xoip_comm {
-    int  track;
-    long callref;
-    int  extout;
+    int  track; /* the track number */
+    long callref; /* the call reference internal to XoIP */
     unsigned int stop_tones:1;
     xoip_protocol_t proto;
     int (*func_data_callback) (int track, int callref, const char* data);

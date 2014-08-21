@@ -33,6 +33,18 @@
 int do_process_message (const char *buf, int size,
 			struct f1_messages_handlers *handlers);
 
+static void do_process_message_fa(int track, int callref, char *code, struct f1_messages_handlers *handlers)
+{
+    if(code == NULL){
+        return;
+    }
+
+    if(code[0] == 'M'){
+        handlers->mute_micro_operator(track, callref, true);
+    }else if(code[0] == 'N'){
+        handlers->mute_micro_operator(track, callref, false);
+    }
+}
 
 /*!
  * \brief Intiaialize the emmessions configuration for the given communication.
@@ -169,6 +181,9 @@ int do_process_message (const char *buf, int size,
   /* so far sor good */
   switch (type)
     {
+    case 'A':
+        do_process_message_fa(track, callref, messages[3], handlers);
+        break;
     case 'C':
         do_process_message_fc(track, callref, messages, handlers);
         break;

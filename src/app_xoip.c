@@ -201,7 +201,6 @@ static struct xoip_comm* xoip_comm_new(int track, int callref, struct ast_channe
     xcomm->track = track;
     xcomm->callref = callref;
     xcomm->stop_tones = 0;
-    xcomm->extout = 0;
     xcomm->func_data_callback = data_callback_fn;
     xcomm->chan = chan;
     xcomm->dsp = ast_dsp_new();
@@ -891,6 +890,24 @@ int emmission_configuration_fn(int track, int callref, char *type, int dtmf_dura
     xcomm->emmissions_conf.loudness = loudness;
     return -1;
 }
+
+/*!
+ * \brief This function not yet implemented.
+ * Mute or unmute a operator's micro
+ * \param track The track number
+ * \param callref The call reference
+ * \param mute Process mute(if true) or unmute of the operator's micro
+ *
+ * \return -1 on error
+ * \return 0 on succcess
+ */
+int mute_micro_operator_fn(int track, int callref, bool mute)
+{
+     ast_log(LOG_ERROR, "XoIP : Mute/Unmute function is not implemented. Please \
+             think to fix or ask someone to fix it :-).\n", track, callref);
+    return -1;
+}
+
 
 
 /*!

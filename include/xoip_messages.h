@@ -21,9 +21,11 @@
 #define  XOIP_MESSAGES_INC
 
 #include <stdio.h>
+#include <stdbool.h>
 
 struct f1_messages_handlers
 {
+    int (*mute_micro_operator)(int track, int callref, bool mute);
     
     /*!
      * \brief Process (F G), message from f1 endpoint.
